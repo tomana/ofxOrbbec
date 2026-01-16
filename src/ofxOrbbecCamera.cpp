@@ -675,8 +675,6 @@ ofPixels ofxOrbbecCamera::processFrame(std::shared_ptr<ob::Frame> frame){
 
 ofFloatPixels ofxOrbbecCamera::processFrameFloatPixels(std::shared_ptr<ob::Frame> frame) {
     ofFloatPixels pix;
-    cv::Mat imuMat;
-    cv::Mat rstMat;
 
     try{
         if( !frame ){
@@ -686,15 +684,21 @@ ofFloatPixels ofxOrbbecCamera::processFrameFloatPixels(std::shared_ptr<ob::Frame
         if(frame->type() == OB_FRAME_DEPTH) {
             auto videoFrame = frame->as<ob::VideoFrame>();
             if(videoFrame->format() == OB_FORMAT_Y16) {
-                std::vector<float> raw_pixels;
-                raw_pixels.resize(videoFrame->width() * videoFrame->height());
-                float scale = videoFrame->as<ob::DepthFrame>()->getValueScale();
-                std::for_each(raw_pixels.begin(),
-                              raw_pixels.end(),
-                              [scale](float &x) { x *= scale; });
-                std::memcpy(raw_pixels.data(), videoFrame->data(), sizeof(float) * videoFrame->width() * videoFrame->height());
+                int width = videoFrame->width();
+                int height = videoFrame->height();
+                int numPixels = width * height;
                 
-                pix.setFromPixels(raw_pixels.data(), videoFrame->width(), videoFrame->height(), 1);
+                std::vector<float> raw_pixels;
+                raw_pixels.resize(numPixels);
+                
+                float scale = videoFrame->as<ob::DepthFrame>()->getValueScale();
+                // Convert uint16_t to float and apply scale
+                const uint16_t* depthData = reinterpret_cast<const uint16_t*>(videoFrame->data());
+                for(int i = 0; i < numPixels; i++) {
+                    raw_pixels[i] = static_cast<float>(depthData[i]) * scale;
+                }
+
+                pix.setFromPixels(raw_pixels.data(), width, height, 1);
             }
         }
     } catch(const cv::Exception& ex) {
