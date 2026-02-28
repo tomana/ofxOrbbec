@@ -1,9 +1,9 @@
-﻿/* License: Apache 2.0. See LICENSE file in root directory.
-    Copyright(c) 2020  Orbbec Corporation. All Rights Reserved. */
+// Copyright (c) Orbbec Inc. All Rights Reserved.
+// Licensed under the MIT License.
 
 /**
  * \file ObSensor.hpp
- * \brief This is the main entry point for the OrbbecSDK C++ library.
+ * \brief This is the main entry point for the SDK C++ library.
  *        It includes all necessary header files for using the library.
  */
 #pragma once
@@ -17,5 +17,5 @@
 #include <libobsensor/hpp/RecordPlayback.hpp>
 #include <libobsensor/hpp/Sensor.hpp>
 #include <libobsensor/hpp/StreamProfile.hpp>
-#include <libobsensor/hpp/Types.hpp>
 #include <libobsensor/hpp/Version.hpp>
+#include <libobsensor/hpp/TypeHelper.hpp>

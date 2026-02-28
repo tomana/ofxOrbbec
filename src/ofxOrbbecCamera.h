@@ -57,7 +57,6 @@ struct Settings{
     bool bSpatialFilter = false;           // Edge-preserving spatial smoothing
     bool bHoleFillingFilter = false;       // Fill missing depth pixels
     bool bNoiseRemovalFilter = false;      // Remove small noise scatter
-    bool bEdgeNoiseRemovalFilter = false;  // Remove noise at depth edges
 };
 
 };
@@ -119,7 +118,6 @@ class ofxOrbbecCamera : public ofThread{
         void enableSpatialFilter(bool enable);
         void enableHoleFillingFilter(bool enable);
         void enableNoiseRemovalFilter(bool enable);
-        void enableEdgeNoiseRemovalFilter(bool enable);
 
         // Fine-tuning (call after open())
         void setTemporalFilterWeight(float weight);       // 0-1: blend factor (higher = more smoothing)
@@ -132,7 +130,6 @@ class ofxOrbbecCamera : public ofThread{
         bool isSpatialFilterEnabled() const;
         bool isHoleFillingFilterEnabled() const;
         bool isNoiseRemovalFilterEnabled() const;
-        bool isEdgeNoiseRemovalFilterEnabled() const;
 
     protected:
         void threadedFunction() override; 
@@ -203,7 +200,6 @@ class ofxOrbbecCamera : public ofThread{
         std::shared_ptr<ob::SpatialAdvancedFilter> mSpatialFilter;
         std::shared_ptr<ob::HoleFillingFilter>     mHoleFillingFilter;
         std::shared_ptr<ob::NoiseRemovalFilter>    mNoiseRemovalFilter;
-        std::shared_ptr<ob::EdgeNoiseRemovalFilter> mEdgeNoiseRemovalFilter;
         void setupDepthFilters();
         std::shared_ptr<ob::Frame> applyDepthFilters(std::shared_ptr<ob::Frame> frame);
         glm::vec3 gyro;

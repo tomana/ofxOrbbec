@@ -67,7 +67,6 @@ void ofxOrbbecCamera::clear(){
     mSpatialFilter.reset();
     mHoleFillingFilter.reset();
     mNoiseRemovalFilter.reset();
-    mEdgeNoiseRemovalFilter.reset();
 
     mCurrentSettings = ofxOrbbec::Settings();
     bNewFrameColor = bNewFrameDepth = bNewFrameIR = false;
@@ -970,25 +969,15 @@ void ofxOrbbecCamera::setupDepthFilters() {
         ofLogWarning("ofxOrbbecCamera") << "NoiseRemovalFilter not available: " << e.what();
     }
 
-    try {
-        mEdgeNoiseRemovalFilter = std::make_shared<ob::EdgeNoiseRemovalFilter>();
-        mEdgeNoiseRemovalFilter->enable(mCurrentSettings.bEdgeNoiseRemovalFilter);
-        ofLogNotice("ofxOrbbecCamera") << "EdgeNoiseRemovalFilter created (enabled=" << mCurrentSettings.bEdgeNoiseRemovalFilter << ")";
-    } catch (const std::exception& e) {
-        ofLogWarning("ofxOrbbecCamera") << "EdgeNoiseRemovalFilter not available: " << e.what();
-    }
 }
 
 std::shared_ptr<ob::Frame> ofxOrbbecCamera::applyDepthFilters(std::shared_ptr<ob::Frame> frame) {
-    // Apply filters in recommended order: spatial → temporal → edge noise → noise removal → hole filling
+    // Apply filters in recommended order: spatial → temporal → noise removal → hole filling
     if (mSpatialFilter && mSpatialFilter->isEnabled()) {
         try { frame = mSpatialFilter->process(frame); } catch (...) {}
     }
     if (mTemporalFilter && mTemporalFilter->isEnabled()) {
         try { frame = mTemporalFilter->process(frame); } catch (...) {}
-    }
-    if (mEdgeNoiseRemovalFilter && mEdgeNoiseRemovalFilter->isEnabled()) {
-        try { frame = mEdgeNoiseRemovalFilter->process(frame); } catch (...) {}
     }
     if (mNoiseRemovalFilter && mNoiseRemovalFilter->isEnabled()) {
         try { frame = mNoiseRemovalFilter->process(frame); } catch (...) {}
@@ -1011,10 +1000,6 @@ void ofxOrbbecCamera::enableHoleFillingFilter(bool enable) {
 void ofxOrbbecCamera::enableNoiseRemovalFilter(bool enable) {
     if (mNoiseRemovalFilter) mNoiseRemovalFilter->enable(enable);
 }
-void ofxOrbbecCamera::enableEdgeNoiseRemovalFilter(bool enable) {
-    if (mEdgeNoiseRemovalFilter) mEdgeNoiseRemovalFilter->enable(enable);
-}
-
 void ofxOrbbecCamera::setTemporalFilterWeight(float weight) {
     if (mTemporalFilter) mTemporalFilter->setWeight(weight);
 }
@@ -1040,6 +1025,4 @@ bool ofxOrbbecCamera::isHoleFillingFilterEnabled() const {
 bool ofxOrbbecCamera::isNoiseRemovalFilterEnabled() const {
     return mNoiseRemovalFilter && mNoiseRemovalFilter->isEnabled();
 }
-bool ofxOrbbecCamera::isEdgeNoiseRemovalFilterEnabled() const {
-    return mEdgeNoiseRemovalFilter && mEdgeNoiseRemovalFilter->isEnabled();
-}
+

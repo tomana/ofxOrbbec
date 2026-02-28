@@ -1,5 +1,5 @@
-﻿// License: Apache 2.0. See LICENSE file in root directory.
-// Copyright(c) 2020 Orbbec  Corporation. All Rights Reserved.
+// Copyright (c) Orbbec Inc. All Rights Reserved.
+// Licensed under the MIT License.
 
 /**
  * @file ObTypes.h
@@ -7,40 +7,11 @@
  */
 
 #pragma once
-#if(defined(WIN32) || defined(_WIN32) || defined(WINCE))
-#ifdef OB_EXPORTS
-#define OB_EXTENSION_API __declspec(dllexport)
-#define OB_EXTENSION_INTERNAL_API __declspec(dllexport)
-#elif defined(OB2_EXPORTS)
-#define OB_EXTENSION_API __declspec(dllexport)
-#define OB_EXTENSION_INTERNAL_API
-#else
-#ifndef OB_STATIC
-#define OB_EXTENSION_API __declspec(dllimport)
-#define OB_EXTENSION_INTERNAL_API __declspec(dllimport)
-#else
-#define OB_EXTENSION_API
-#define OB_EXTENSION_INTERNAL_API
-#endif
-#endif
-#else
-#ifndef OB_STATIC
-#define OB_EXTENSION_API __attribute__((visibility("default")))
-#define OB_EXTENSION_INTERNAL_API __attribute__((visibility("default")))
-#else
-#define OB_EXTENSION_API
-#define OB_EXTENSION_INTERNAL_API
-#endif
-#endif
 
-#if defined(__GNUC__) || defined(__clang__)
-#define DEPRECATED __attribute__((deprecated))
-#elif defined(_MSC_VER)
-#define DEPRECATED __declspec(deprecated)
-#else
-#pragma message("WARNING: You need to implement DEPRECATED for this compiler")
-#define DEPRECATED
-#endif
+#include "Export.h"
+
+#include <stdbool.h>
+#include <stdint.h>
 
 #pragma pack(push, 1)  // struct 1-byte align
 
@@ -48,50 +19,44 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdint.h>
-
-typedef struct ContextImpl             ob_context;
-typedef struct DeviceImpl              ob_device;
-typedef struct DeviceInfoImpl          ob_device_info;
-typedef struct DeviceListImpl          ob_device_list;
-typedef struct CameraParamListImpl     ob_camera_param_list;
-typedef struct SensorImpl              ob_sensor;
-typedef struct SensorListImpl          ob_sensor_list;
-typedef struct StreamProfileImpl       ob_stream_profile;
-typedef struct StreamProfileListImpl   ob_stream_profile_list;
-typedef struct CFrameImpl              ob_frame;
-typedef struct FilterImpl              ob_filter;
-typedef struct PipelineImpl            ob_pipeline;
-typedef struct ConfigImpl              ob_config;
-typedef struct RecorderImpl            ob_recorder;
-typedef struct PlaybackImpl            ob_playback;
-typedef struct OBDepthWorkModeListImpl ob_depth_work_mode_list;
-typedef struct FilterListImpl          ob_filter_list;
-typedef struct OBFilterListImpl        ob_filters;
-typedef struct DevicePresetListImpl    ob_device_preset_list;
+typedef struct ob_context_t                       ob_context;
+typedef struct ob_device_t                        ob_device;
+typedef struct ob_device_info_t                   ob_device_info;
+typedef struct ob_device_list_t                   ob_device_list;
+typedef struct ob_record_device_t                 ob_record_device;
+typedef struct ob_playback_device_t               ob_playback_device;
+typedef struct ob_camera_param_list_t             ob_camera_param_list;
+typedef struct ob_sensor_t                        ob_sensor;
+typedef struct ob_sensor_list_t                   ob_sensor_list;
+typedef struct ob_stream_profile_t                ob_stream_profile;
+typedef struct ob_stream_profile_list_t           ob_stream_profile_list;
+typedef struct ob_frame_t                         ob_frame;
+typedef struct ob_filter_t                        ob_filter;
+typedef struct ob_filter_list_t                   ob_filter_list;
+typedef struct ob_pipeline_t                      ob_pipeline;
+typedef struct ob_config_t                        ob_config;
+typedef struct ob_depth_work_mode_list_t          ob_depth_work_mode_list;
+typedef struct ob_device_preset_list_t            ob_device_preset_list;
+typedef struct ob_filter_config_schema_list_t     ob_filter_config_schema_list;
+typedef struct ob_device_frame_interleave_list_t  ob_device_frame_interleave_list;
+typedef struct ob_preset_resolution_config_list_t ob_preset_resolution_config_list;
 
 #define OB_WIDTH_ANY 0
 #define OB_HEIGHT_ANY 0
 #define OB_FPS_ANY 0
 #define OB_FORMAT_ANY OB_FORMAT_UNKNOWN
 #define OB_PROFILE_DEFAULT 0
-
+#define OB_DEFAULT_STRIDE_BYTES 0
 #define OB_ACCEL_FULL_SCALE_RANGE_ANY OB_ACCEL_FS_UNKNOWN
 #define OB_ACCEL_SAMPLE_RATE_ANY OB_SAMPLE_RATE_UNKNOWN
 #define OB_GYRO_FULL_SCALE_RANGE_ANY OB_GYRO_FS_UNKNOWN
 #define OB_GYRO_SAMPLE_RATE_ANY OB_SAMPLE_RATE_UNKNOWN
+#define OB_LIDAR_SCAN_ANY OB_LIDAR_SCAN_UNKNOWN
 
 /**
- * @brief send data or receive data return status type
+ * @brief maximum path length
  */
-typedef enum {
-    HP_STATUS_OK                      = 0,      /**< success*/
-    HP_STATUS_NO_DEVICE_FOUND         = 1,      /**< No device found*/
-    HP_STATUS_CONTROL_TRANSFER_FAILED = 2,      /**< Transfer failed*/
-    HP_STATUS_UNKNOWN_ERROR           = 0xffff, /**< Unknown error*/
-} OBHPStatusCode,
-    ob_hp_status_code;
+#define OB_PATH_MAX (1024)
 
 /**
  * @brief the permission type of api or property
@@ -127,21 +92,24 @@ typedef enum {
 } OBLogSeverity,
     ob_log_severity, DEVICE_LOG_SEVERITY_LEVEL, OBDeviceLogSeverityLevel, ob_device_log_severity_level;
 #define OB_LOG_SEVERITY_NONE OB_LOG_SEVERITY_OFF
+
 /**
  * @brief The exception types in the SDK, through the exception type, you can easily determine the specific type of error.
  * For detailed error API interface functions and error logs, please refer to the information of ob_error
  */
 typedef enum {
-    OB_EXCEPTION_TYPE_UNKNOWN,                 /**< Unknown error, an error not clearly defined by the SDK */
-    OB_EXCEPTION_TYPE_CAMERA_DISCONNECTED,     /**< SDK device disconnection exception */
-    OB_EXCEPTION_TYPE_PLATFORM,                /**< An error in the SDK adaptation platform layer means an error in the implementation of a specific system
-                                                  platform */
-    OB_EXCEPTION_TYPE_INVALID_VALUE,           /**< Invalid parameter type exception, need to check input parameter */
-    OB_EXCEPTION_TYPE_WRONG_API_CALL_SEQUENCE, /**< Exception caused by API version mismatch */
-    OB_EXCEPTION_TYPE_NOT_IMPLEMENTED,         /**< SDK and firmware have not yet implemented functions */
+    OB_EXCEPTION_TYPE_UNKNOWN,             /**< Unknown error, an error not clearly defined by the SDK */
+    OB_EXCEPTION_STD_EXCEPTION,            /** < Standard exception, an error caused by the standard library */
+    OB_EXCEPTION_TYPE_CAMERA_DISCONNECTED, /**< Camera/Device has been disconnected, the camera/device is not available */
+    OB_EXCEPTION_TYPE_PLATFORM,            /**< An error in the SDK adaptation platform layer, which means an error in the implementation of a specific system
+                                              platform */
+    OB_EXCEPTION_TYPE_INVALID_VALUE,       /**< Invalid parameter type exception, need to check input parameter */
+    OB_EXCEPTION_TYPE_WRONG_API_CALL_SEQUENCE, /**< Wrong API call sequence, the API is called in the wrong order or the wrong parameter is passed */
+    OB_EXCEPTION_TYPE_NOT_IMPLEMENTED,         /**< SDK and firmware have not yet implemented this function or feature */
     OB_EXCEPTION_TYPE_IO,                      /**< SDK access IO exception error */
-    OB_EXCEPTION_TYPE_MEMORY,                  /**< SDK access and use memory errors, which means that the frame fails to allocate memory */
-    OB_EXCEPTION_TYPE_UNSUPPORTED_OPERATION,   /**< Unsupported operation type error by SDK or RGBD device */
+    OB_EXCEPTION_TYPE_MEMORY,                  /**< SDK access and use memory errors. For example, the frame fails to allocate memory */
+    OB_EXCEPTION_TYPE_UNSUPPORTED_OPERATION,   /**< Unsupported operation type error by SDK or device */
+    OB_EXCEPTION_TYPE_ACCESS_DENIED,           /**< Device access denied */
 } OBExceptionType,
     ob_exception_type;
 
@@ -160,16 +128,20 @@ typedef struct ob_error {
  * @brief Enumeration value describing the sensor type
  */
 typedef enum {
-    OB_SENSOR_UNKNOWN   = 0, /**< Unknown type sensor */
-    OB_SENSOR_IR        = 1, /**< IR */
-    OB_SENSOR_COLOR     = 2, /**< Color */
-    OB_SENSOR_DEPTH     = 3, /**< Depth */
-    OB_SENSOR_ACCEL     = 4, /**< Accel */
-    OB_SENSOR_GYRO      = 5, /**< Gyro */
-    OB_SENSOR_IR_LEFT   = 6, /**< left IR */
-    OB_SENSOR_IR_RIGHT  = 7, /**< Right IR */
-    OB_SENSOR_RAW_PHASE = 8, /**< Raw Phase */
-    OB_SENSOR_COUNT,
+    OB_SENSOR_UNKNOWN     = 0,  /**< Unknown type sensor */
+    OB_SENSOR_IR          = 1,  /**< IR */
+    OB_SENSOR_COLOR       = 2,  /**< Color */
+    OB_SENSOR_DEPTH       = 3,  /**< Depth */
+    OB_SENSOR_ACCEL       = 4,  /**< Accel */
+    OB_SENSOR_GYRO        = 5,  /**< Gyro */
+    OB_SENSOR_IR_LEFT     = 6,  /**< left IR for stereo camera*/
+    OB_SENSOR_IR_RIGHT    = 7,  /**< Right IR for stereo camera*/
+    OB_SENSOR_RAW_PHASE   = 8,  /**< Raw Phase */
+    OB_SENSOR_CONFIDENCE  = 9,  /**< Confidence */
+    OB_SENSOR_LIDAR       = 10, /**< LiDAR */
+    OB_SENSOR_COLOR_LEFT  = 11, /**< Left Color */
+    OB_SENSOR_COLOR_RIGHT = 12, /**< Right Color */
+    OB_SENSOR_TYPE_COUNT,       /**The total number of sensor types, is not a valid sensor type */
 } OBSensorType,
     ob_sensor_type;
 
@@ -177,16 +149,21 @@ typedef enum {
  * @brief Enumeration value describing the type of data stream
  */
 typedef enum {
-    OB_STREAM_UNKNOWN   = -1, /**< Unknown type stream */
-    OB_STREAM_VIDEO     = 0,  /**< Video stream (infrared, color, depth streams are all video streams) */
-    OB_STREAM_IR        = 1,  /**< IR stream */
-    OB_STREAM_COLOR     = 2,  /**< color stream */
-    OB_STREAM_DEPTH     = 3,  /**< depth stream */
-    OB_STREAM_ACCEL     = 4,  /**< Accelerometer data stream */
-    OB_STREAM_GYRO      = 5,  /**< Gyroscope data stream */
-    OB_STREAM_IR_LEFT   = 6,  /**< Left IR stream */
-    OB_STREAM_IR_RIGHT  = 7,  /**< Right IR stream */
-    OB_STREAM_RAW_PHASE = 8,  /**< RawPhase Stream */
+    OB_STREAM_UNKNOWN     = -1, /**< Unknown type stream */
+    OB_STREAM_VIDEO       = 0,  /**< Video stream (infrared, color, depth streams are all video streams) */
+    OB_STREAM_IR          = 1,  /**< IR stream */
+    OB_STREAM_COLOR       = 2,  /**< color stream */
+    OB_STREAM_DEPTH       = 3,  /**< depth stream */
+    OB_STREAM_ACCEL       = 4,  /**< Accelerometer data stream */
+    OB_STREAM_GYRO        = 5,  /**< Gyroscope data stream */
+    OB_STREAM_IR_LEFT     = 6,  /**< Left IR stream for stereo camera */
+    OB_STREAM_IR_RIGHT    = 7,  /**< Right IR stream for stereo camera */
+    OB_STREAM_RAW_PHASE   = 8,  /**< RawPhase Stream */
+    OB_STREAM_CONFIDENCE  = 9,  /**< Confidence Stream*/
+    OB_STREAM_LIDAR       = 10, /**< LiDAR Stream for LiDAR device*/
+    OB_STREAM_COLOR_LEFT  = 11, /**< Left Color stream */
+    OB_STREAM_COLOR_RIGHT = 12, /**< Right Color stream */
+    OB_STREAM_TYPE_COUNT,       /**< The total number of stream type,is not a valid stream type */
 } OBStreamType,
     ob_stream_type;
 
@@ -194,86 +171,124 @@ typedef enum {
  * @brief Enumeration value describing the type of frame
  */
 typedef enum {
-    OB_FRAME_UNKNOWN   = -1, /**< Unknown frame type */
-    OB_FRAME_VIDEO     = 0,  /**< Video frame */
-    OB_FRAME_IR        = 1,  /**< IR frame */
-    OB_FRAME_COLOR     = 2,  /**< Color frame */
-    OB_FRAME_DEPTH     = 3,  /**< Depth frame */
-    OB_FRAME_ACCEL     = 4,  /**< Accelerometer data frame */
-    OB_FRAME_SET       = 5,  /**< Frame collection (internally contains a variety of data frames) */
-    OB_FRAME_POINTS    = 6,  /**< Point cloud frame */
-    OB_FRAME_GYRO      = 7,  /**< Gyroscope data frame */
-    OB_FRAME_IR_LEFT   = 8,  /**< Left IR frame */
-    OB_FRAME_IR_RIGHT  = 9,  /**< Right IR frame */
-    OB_FRAME_RAW_PHASE = 10, /**< Rawphase frame*/
+    OB_FRAME_UNKNOWN      = -1, /**< Unknown frame type */
+    OB_FRAME_VIDEO        = 0,  /**< Video frame */
+    OB_FRAME_IR           = 1,  /**< IR frame */
+    OB_FRAME_COLOR        = 2,  /**< Color frame */
+    OB_FRAME_DEPTH        = 3,  /**< Depth frame */
+    OB_FRAME_ACCEL        = 4,  /**< Accelerometer data frame */
+    OB_FRAME_SET          = 5,  /**< Frame collection (internally contains a variety of data frames) */
+    OB_FRAME_POINTS       = 6,  /**< Point cloud frame */
+    OB_FRAME_GYRO         = 7,  /**< Gyroscope data frame */
+    OB_FRAME_IR_LEFT      = 8,  /**< Left IR frame for stereo camera */
+    OB_FRAME_IR_RIGHT     = 9,  /**< Right IR frame for stereo camera */
+    OB_FRAME_RAW_PHASE    = 10, /**< Raw Phase frame*/
+    OB_FRAME_CONFIDENCE   = 11, /**< Confidence frame*/
+    OB_FRAME_LIDAR_POINTS = 12, /**< LiDAR point3d cloud frame*/
+    OB_FRAME_COLOR_LEFT   = 13, /**< Left Color frame */
+    OB_FRAME_COLOR_RIGHT  = 14, /**< Right Color frame */
+    OB_FRAME_TYPE_COUNT,        /**< The total number of frame types, is not a valid frame type */
 } OBFrameType,
     ob_frame_type;
+
+/**
+ * @brief Enumeration value describing the pixel type of frame (usually used for depth frame)
+ *
+ */
+typedef enum {
+    OB_PIXEL_UNKNOWN   = -1,  // Unknown pixel type, or undefined pixel type for current frame
+    OB_PIXEL_DEPTH     = 0,   // Depth pixel type, the value of the pixel is the distance from the camera to the object
+    OB_PIXEL_DISPARITY = 2,   // Disparity for structured light camera
+    OB_PIXEL_RAW_PHASE = 3,   // Raw phase for tof camera
+    OB_PIXEL_TOF_DEPTH = 4,   // Depth for tof camera
+} OBPixelType,
+    ob_pixel_type;
 
 /**
  * @brief Enumeration value describing the pixel format
  */
 typedef enum {
-    OB_FORMAT_YUYV       = 0,    /**< YUYV format */
-    OB_FORMAT_YUY2       = 1,    /**< YUY2 format (the actual format is the same as YUYV) */
-    OB_FORMAT_UYVY       = 2,    /**< UYVY format */
-    OB_FORMAT_NV12       = 3,    /**< NV12 format */
-    OB_FORMAT_NV21       = 4,    /**< NV21 format */
-    OB_FORMAT_MJPG       = 5,    /**< MJPEG encoding format */
-    OB_FORMAT_H264       = 6,    /**< H.264 encoding format */
-    OB_FORMAT_H265       = 7,    /**< H.265 encoding format */
-    OB_FORMAT_Y16        = 8,    /**< Y16 format, 16-bit per pixel, single-channel*/
-    OB_FORMAT_Y8         = 9,    /**< Y8 format, 8-bit per pixel, single-channel */
-    OB_FORMAT_Y10        = 10,   /**< Y10 format, 10-bit per pixel, single-channel(SDK will unpack into Y16 by default) */
-    OB_FORMAT_Y11        = 11,   /**< Y11 format, 11-bit per pixel, single-channel (SDK will unpack into Y16 by default) */
-    OB_FORMAT_Y12        = 12,   /**< Y12 format, 12-bit per pixel, single-channel(SDK will unpack into Y16 by default) */
-    OB_FORMAT_GRAY       = 13,   /**< GRAY (the actual format is the same as YUYV) */
-    OB_FORMAT_HEVC       = 14,   /**< HEVC encoding format (the actual format is the same as H265) */
-    OB_FORMAT_I420       = 15,   /**< I420 format */
-    OB_FORMAT_ACCEL      = 16,   /**< Acceleration data format */
-    OB_FORMAT_GYRO       = 17,   /**< Gyroscope data format */
-    OB_FORMAT_POINT      = 19,   /**< XYZ 3D coordinate point format */
-    OB_FORMAT_RGB_POINT  = 20,   /**< XYZ 3D coordinate point format with RGB information */
-    OB_FORMAT_RLE        = 21,   /**< RLE pressure test format (SDK will be unpacked into Y16 by default) */
-    OB_FORMAT_RGB        = 22,   /**< RGB format (actual RGB888)  */
-    OB_FORMAT_BGR        = 23,   /**< BGR format (actual BGR888) */
-    OB_FORMAT_Y14        = 24,   /**< Y14 format, 14-bit per pixel, single-channel (SDK will unpack into Y16 by default) */
-    OB_FORMAT_BGRA       = 25,   /**< BGRA format */
-    OB_FORMAT_COMPRESSED = 26,   /**< Compression format */
-    OB_FORMAT_RVL        = 27,   /**< RVL pressure test format (SDK will be unpacked into Y16 by default) */
-    OB_FORMAT_Z16        = 28,   /**< Is same as Y16*/
-    OB_FORMAT_YV12       = 29,   /**< Is same as Y12, using for right ir stream*/
-    OB_FORMAT_BA81       = 30,   /**< Is same as Y8, using for right ir stream*/
-    OB_FORMAT_RGBA       = 31,   /**< RGBA format */
-    OB_FORMAT_BYR2       = 32,   /**< byr2 format */
-    OB_FORMAT_RW16       = 33,   /**< RAW16 format */
-    OB_FORMAT_DISP16     = 34,   /**< Y16 format for disparity map*/
-    OB_FORMAT_UNKNOWN    = 0xff, /**< unknown format */
+    OB_FORMAT_UNKNOWN            = -1, /**< unknown format */
+    OB_FORMAT_YUYV               = 0,  /**< YUYV format */
+    OB_FORMAT_YUY2               = 1,  /**< YUY2 format (the actual format is the same as YUYV) */
+    OB_FORMAT_UYVY               = 2,  /**< UYVY format */
+    OB_FORMAT_NV12               = 3,  /**< NV12 format */
+    OB_FORMAT_NV21               = 4,  /**< NV21 format */
+    OB_FORMAT_MJPG               = 5,  /**< MJPEG encoding format */
+    OB_FORMAT_H264               = 6,  /**< H.264 encoding format */
+    OB_FORMAT_H265               = 7,  /**< H.265 encoding format */
+    OB_FORMAT_Y16                = 8,  /**< Y16 format, 16-bit per pixel, single-channel*/
+    OB_FORMAT_Y8                 = 9,  /**< Y8 format, 8-bit per pixel, single-channel */
+    OB_FORMAT_Y10                = 10, /**< Y10 format, 10-bit per pixel, single-channel(SDK will unpack into Y16 by default) */
+    OB_FORMAT_Y11                = 11, /**< Y11 format, 11-bit per pixel, single-channel (SDK will unpack into Y16 by default) */
+    OB_FORMAT_Y12                = 12, /**< Y12 format, 12-bit per pixel, single-channel(SDK will unpack into Y16 by default) */
+    OB_FORMAT_GRAY               = 13, /**< GRAY (the actual format is the same as YUYV) */
+    OB_FORMAT_HEVC               = 14, /**< HEVC encoding format (the actual format is the same as H265) */
+    OB_FORMAT_I420               = 15, /**< I420 format */
+    OB_FORMAT_ACCEL              = 16, /**< Acceleration data format */
+    OB_FORMAT_GYRO               = 17, /**< Gyroscope data format */
+    OB_FORMAT_POINT              = 19, /**< XYZ 3D coordinate point format, @ref OBPoint */
+    OB_FORMAT_RGB_POINT          = 20, /**< XYZ 3D coordinate point format with RGB information, @ref OBColorPoint */
+    OB_FORMAT_RLE                = 21, /**< RLE pressure test format (SDK will be unpacked into Y16 by default) */
+    OB_FORMAT_RGB                = 22, /**< RGB format (actual RGB888)  */
+    OB_FORMAT_BGR                = 23, /**< BGR format (actual BGR888) */
+    OB_FORMAT_Y14                = 24, /**< Y14 format, 14-bit per pixel, single-channel (SDK will unpack into Y16 by default) */
+    OB_FORMAT_BGRA               = 25, /**< BGRA format */
+    OB_FORMAT_COMPRESSED         = 26, /**< Compression format */
+    OB_FORMAT_RVL                = 27, /**< RVL pressure test format (SDK will be unpacked into Y16 by default) */
+    OB_FORMAT_Z16                = 28, /**< Is same as Y16*/
+    OB_FORMAT_YV12               = 29, /**< Is same as Y12, using for right ir stream*/
+    OB_FORMAT_BA81               = 30, /**< Is same as Y8, using for right ir stream*/
+    OB_FORMAT_RGBA               = 31, /**< RGBA format */
+    OB_FORMAT_BYR2               = 32, /**< byr2 format */
+    OB_FORMAT_RW16               = 33, /**< RAW16 format */
+    OB_FORMAT_Y12C4              = 34, /**<  Y12C4 format */
+    OB_FORMAT_LIDAR_POINT        = 35, /**< XYZ 3D coordinate point format with LiDAR information, @ref OBLiDARPoint */
+    OB_FORMAT_LIDAR_SPHERE_POINT = 36, /**< Spherical coordinate point format with LiDAR information, @ref OBLiDARSpherePoint */
+    OB_FORMAT_LIDAR_SCAN         = 37, /**< LiDAR single-line scan mode data format, @ref OBLiDARScanPoint */
+    OB_FORMAT_LIDAR_CALIBRATION  = 38, /**< LiDAR calibration mode point format */
 } OBFormat,
     ob_format;
 
 #define OB_FORMAT_RGB888 OB_FORMAT_RGB  // Alias of OB_FORMAT_RGB for compatibility
 #define OB_FORMAT_MJPEG OB_FORMAT_MJPG  // Alias of OB_FORMAT_MJPG for compatibility
 
+// Check if the format is a fixed data size format
+#define IS_FIXED_SIZE_FORMAT(format)                                                                                                         \
+    (format != OB_FORMAT_MJPG && format != OB_FORMAT_H264 && format != OB_FORMAT_H265 && format != OB_FORMAT_HEVC && format != OB_FORMAT_RLE \
+     && format != OB_FORMAT_RVL)
+
+// Check if the format is a packed format, which means the data of pixels is not continuous or bytes aligned in memory
+#define IS_PACKED_FORMAT(format) \
+    (format == OB_FORMAT_Y10 || format == OB_FORMAT_Y11 || format == OB_FORMAT_Y12 || format == OB_FORMAT_Y14 || format == OB_FORMAT_RLE)
+
 /**
  * @brief Enumeration value describing the firmware upgrade status
  */
 typedef enum {
-    STAT_VERIFY_SUCCESS = 5,  /**< Image file verifify success */
-    STAT_FILE_TRANSFER  = 4,  /**< file transfer */
-    STAT_DONE           = 3,  /**< update completed */
-    STAT_IN_PROGRESS    = 2,  /**< upgrade in process */
-    STAT_START          = 1,  /**< start the upgrade */
-    STAT_VERIFY_IMAGE   = 0,  /**< Image file verification */
-    ERR_VERIFY          = -1, /**< Verification failed */
-    ERR_PROGRAM         = -2, /**< Program execution failed */
-    ERR_ERASE           = -3, /**< Flash parameter failed */
-    ERR_FLASH_TYPE      = -4, /**< Flash type error */
-    ERR_IMAGE_SIZE      = -5, /**< Image file size error */
-    ERR_OTHER           = -6, /**< other errors */
-    ERR_DDR             = -7, /**< DDR access error */
-    ERR_TIMEOUT         = -8  /**< timeout error */
+    STAT_DONE_REBOOT_AND_REUPDATE = 7,   /**< update completed and device requires manual reboot and a second update*/
+    STAT_DONE_WITH_DUPLICATES     = 6,   /**< update completed, but some files were duplicated and ignored */
+    STAT_VERIFY_SUCCESS           = 5,   /**< Image file verifify success */
+    STAT_FILE_TRANSFER            = 4,   /**< file transfer */
+    STAT_DONE                     = 3,   /**< update completed */
+    STAT_IN_PROGRESS              = 2,   /**< upgrade in process */
+    STAT_START                    = 1,   /**< start the upgrade */
+    STAT_VERIFY_IMAGE             = 0,   /**< Image file verification */
+    ERR_VERIFY                    = -1,  /**< Verification failed */
+    ERR_PROGRAM                   = -2,  /**< Program execution failed */
+    ERR_ERASE                     = -3,  /**< Flash parameter failed */
+    ERR_FLASH_TYPE                = -4,  /**< Flash type error */
+    ERR_IMAGE_SIZE                = -5,  /**< Image file size error */
+    ERR_OTHER                     = -6,  /**< other errors */
+    ERR_DDR                       = -7,  /**< DDR access error */
+    ERR_TIMEOUT                   = -8,  /**< timeout error */
+    ERR_MISMATCH                  = -9,  /**< Mismatch firmware error */
+    ERR_UNSUPPORT_DEV             = -10, /**< Unsupported device error */
+    ERR_INVALID_COUNT             = -11, /**< invalid firmware/preset count */
+    ERR_FILE_READ                 = -12, /**< Read image file error */
+    ERR_TRANSFER                  = -13  /**< Transfer failed */
 } OBUpgradeState,
-    ob_upgrade_state;
+    OBFwUpdateState, ob_upgrade_state, ob_fw_update_state;
 
 /**
  * @brief Enumeration value describing the file transfer status
@@ -373,6 +388,18 @@ typedef struct {
     bool def;   ///< Default value
 } OBBoolPropertyRange, ob_bool_property_range;
 
+/** \brief Distortion model: defines how pixel coordinates should be mapped to sensor coordinates. */
+typedef enum {
+    OB_DISTORTION_NONE,                   /**< Rectilinear images. No distortion compensation required. */
+    OB_DISTORTION_MODIFIED_BROWN_CONRADY, /**< Equivalent to Brown-Conrady distortion, except that tangential distortion is applied to radially distorted points
+                                           */
+    OB_DISTORTION_INVERSE_BROWN_CONRADY,  /**< Equivalent to Brown-Conrady distortion, except undistorts image instead of distorting it */
+    OB_DISTORTION_BROWN_CONRADY,          /**< Unmodified Brown-Conrady distortion model */
+    OB_DISTORTION_BROWN_CONRADY_K6,       /**< Unmodified Brown-Conrady distortion model with k6 supported */
+    OB_DISTORTION_KANNALA_BRANDT4,        /**< Kannala-Brandt distortion model */
+} OBCameraDistortionModel,
+    ob_camera_distortion_model;
+
 /**
  * @brief Structure for camera intrinsic parameters
  */
@@ -414,38 +441,16 @@ typedef struct {
  * @brief Structure for distortion parameters
  */
 typedef struct {
-    float k1;  ///< Radial distortion factor 1
-    float k2;  ///< Radial distortion factor 2
-    float k3;  ///< Radial distortion factor 3
-    float k4;  ///< Radial distortion factor 4
-    float k5;  ///< Radial distortion factor 5
-    float k6;  ///< Radial distortion factor 6
-    float p1;  ///< Tangential distortion factor 1
-    float p2;  ///< Tangential distortion factor 2
+    float                   k1;  ///< Radial distortion factor 1
+    float                   k2;  ///< Radial distortion factor 2
+    float                   k3;  ///< Radial distortion factor 3
+    float                   k4;  ///< Radial distortion factor 4
+    float                   k5;  ///< Radial distortion factor 5
+    float                   k6;  ///< Radial distortion factor 6
+    float                   p1;  ///< Tangential distortion factor 1
+    float                   p2;  ///< Tangential distortion factor 2
+    OBCameraDistortionModel model;
 } OBCameraDistortion, ob_camera_distortion;
-
-/** \brief Distortion model: defines how pixel coordinates should be mapped to sensor coordinates. */
-typedef enum {
-    OB_DISTORTION_NONE,                   /**< Rectilinear images. No distortion compensation required. */
-    OB_DISTORTION_MODIFIED_BROWN_CONRADY, /**< Equivalent to Brown-Conrady distortion, except that tangential distortion is applied to radially distorted points
-                                           */
-    OB_DISTORTION_INVERSE_BROWN_CONRADY,  /**< Equivalent to Brown-Conrady distortion, except undistorts image instead of distorting it */
-    OB_DISTORTION_BROWN_CONRADY,          /**< Unmodified Brown-Conrady distortion model */
-} OBCameraDistortionModel,
-    ob_camera_distortion_model;
-
-/** \brief Video stream intrinsics. */
-typedef struct {
-    int                     width;  /**< Width of the image in pixels */
-    int                     height; /**< Height of the image in pixels */
-    float                   ppx;    /**< Horizontal coordinate of the principal point of the image, as a pixel offset from the left edge */
-    float                   ppy;    /**< Vertical coordinate of the principal point of the image, as a pixel offset from the top edge */
-    float                   fx;     /**< Focal length of the image plane, as a multiple of pixel width */
-    float                   fy;     /**< Focal length of the image plane, as a multiple of pixel height */
-    OBCameraDistortionModel model;  /**< Distortion model of the image */
-    float coeffs[5]; /**< Distortion coefficients. Order for Brown-Conrady: [k1, k2, p1, p2, k3]. Order for F-Theta Fish-eye: [k1, k2, k3, k4, 0]. Other models
-                        are subject to their own interpretations */
-} OBCameraAlignIntrinsic, ob_camera_align_intrinsic;
 
 /**
  * @brief Structure for rotation/transformation
@@ -463,30 +468,26 @@ typedef struct {
     OBCameraIntrinsic  rgbIntrinsic;     ///< Color camera internal parameters
     OBCameraDistortion depthDistortion;  ///< Depth camera distortion parameters
     OBCameraDistortion rgbDistortion;    ///< Color camera distortion parameters
-    OBD2CTransform     transform;        ///< Rotation/transformation matrix (from depth to color)
+    OBD2CTransform     transform;        ///< Rotation/transformation matrix
     bool               isMirrored;       ///< Whether the image frame corresponding to this group of parameters is mirrored
 } OBCameraParam, ob_camera_param;
 
-/**
- * @brief Camera parameters
- */
 typedef struct {
-    OBCameraIntrinsic  depthIntrinsic;   ///< Depth camera internal parameters
-    OBCameraIntrinsic  rgbIntrinsic;     ///< Color camera internal parameters
-    OBCameraDistortion depthDistortion;  ///< Depth camera distortion parameters
-
-    OBCameraDistortion rgbDistortion;  ///< Distortion parameters for color camera
-    OBD2CTransform     transform;      ///< Rotation/transformation matrix
-} OBCameraParam_V0, ob_camera_param_v0;
+    int16_t width;                  ///< width
+    int16_t height;                 ///< height
+    int     irDecimationFactor;     ///< ir decimation factor
+    int     depthDecimationFactor;  ///< depth decimation factor
+} OBPresetResolutionConfig, ob_preset_resolution_ratio_config;
 
 /**
  * @brief calibration parameters
  */
 typedef struct {
-    OBCameraIntrinsic  intrinsics[OB_SENSOR_COUNT];            ///< Sensor internal parameters
-    OBCameraDistortion distortion[OB_SENSOR_COUNT];            ///< Sensor distortion
-    OBExtrinsic extrinsics[OB_SENSOR_COUNT][OB_SENSOR_COUNT];  ///< The extrinsic parameters allow 3D coordinate conversions between sensor.To transform from a
-                                                               ///< source to a target 3D coordinate system,under extrinsics[source][target].
+    OBCameraIntrinsic  intrinsics[OB_SENSOR_TYPE_COUNT];  ///< Sensor internal parameters
+    OBCameraDistortion distortion[OB_SENSOR_TYPE_COUNT];  ///< Sensor distortion
+    OBExtrinsic        extrinsics[OB_SENSOR_TYPE_COUNT]
+                          [OB_SENSOR_TYPE_COUNT];  ///< The extrinsic parameters allow 3D coordinate conversions between sensor.To transform from a
+                                                   ///< source to a target 3D coordinate system,under extrinsics[source][target].
 } OBCalibrationParam, ob_calibration_param;
 
 /**
@@ -528,6 +529,15 @@ typedef enum {
     ob_align_mode;
 
 /**
+ * @brief Camera performance mode
+ */
+typedef enum {
+    ADAPTIVE_PERFORMANCE_MODE, /**< Camera adaptive mode */
+    HIGH_PERFORMANCE_MODE,     /**< High Performance Mode */
+} OBCameraPerformanceMode,
+    ob_camera_performance_mode;
+
+/**
  * @brief Rectangle
  */
 typedef struct {
@@ -559,6 +569,10 @@ typedef enum {
     FORMAT_YUYV_TO_BGRA,    /**< YUYV to BGRA */
     FORMAT_YUYV_TO_Y16,     /**< YUYV to Y16 */
     FORMAT_YUYV_TO_Y8,      /**< YUYV to Y8 */
+    FORMAT_RGBA_TO_RGB,     /**< RGBA to RGB */
+    FORMAT_BGRA_TO_BGR,     /**< BGRA to BGR */
+    FORMAT_Y16_TO_RGB,      /**< Y16 to RGB */
+    FORMAT_Y8_TO_RGB,       /**< Y8 to RGB */
 } OBConvertFormat,
     ob_convert_format;
 
@@ -581,38 +595,42 @@ typedef enum {
  * @brief Enumeration of IMU sample rate values (gyroscope or accelerometer)
  */
 typedef enum {
-    OB_SAMPLE_RATE_UNKNOWN   = 0, /**< Unknown sample rate */
-    OB_SAMPLE_RATE_1_5625_HZ = 1, /**< 1.5625Hz */
-    OB_SAMPLE_RATE_3_125_HZ,      /**< 3.125Hz */
-    OB_SAMPLE_RATE_6_25_HZ,       /**< 6.25Hz */
-    OB_SAMPLE_RATE_12_5_HZ,       /**< 12.5Hz */
-    OB_SAMPLE_RATE_25_HZ,         /**< 25Hz */
-    OB_SAMPLE_RATE_50_HZ,         /**< 50Hz */
-    OB_SAMPLE_RATE_100_HZ,        /**< 100Hz */
-    OB_SAMPLE_RATE_200_HZ,        /**< 200Hz */
-    OB_SAMPLE_RATE_500_HZ,        /**< 500Hz */
-    OB_SAMPLE_RATE_1_KHZ,         /**< 1KHz */
-    OB_SAMPLE_RATE_2_KHZ,         /**< 2KHz */
-    OB_SAMPLE_RATE_4_KHZ,         /**< 4KHz */
-    OB_SAMPLE_RATE_8_KHZ,         /**< 8KHz */
-    OB_SAMPLE_RATE_16_KHZ,        /**< 16KHz */
-    OB_SAMPLE_RATE_32_KHZ,        /**< 32Hz */
-} OBGyroSampleRate,
-    ob_gyro_sample_rate, OBAccelSampleRate, ob_accel_sample_rate, OB_SAMPLE_RATE;
+    OB_SAMPLE_RATE_UNKNOWN   = 0,
+    OB_SAMPLE_RATE_1_5625_HZ = 1,  /**< 1.5625Hz */
+    OB_SAMPLE_RATE_3_125_HZ  = 2,  /**< 3.125Hz */
+    OB_SAMPLE_RATE_6_25_HZ   = 3,  /**< 6.25Hz */
+    OB_SAMPLE_RATE_12_5_HZ   = 4,  /**< 12.5Hz */
+    OB_SAMPLE_RATE_25_HZ     = 5,  /**< 25Hz */
+    OB_SAMPLE_RATE_50_HZ     = 6,  /**< 50Hz */
+    OB_SAMPLE_RATE_100_HZ    = 7,  /**< 100Hz */
+    OB_SAMPLE_RATE_200_HZ    = 8,  /**< 200Hz */
+    OB_SAMPLE_RATE_500_HZ    = 9,  /**< 500Hz */
+    OB_SAMPLE_RATE_1_KHZ     = 10, /**< 1KHz */
+    OB_SAMPLE_RATE_2_KHZ     = 11, /**< 2KHz */
+    OB_SAMPLE_RATE_4_KHZ     = 12, /**< 4KHz */
+    OB_SAMPLE_RATE_8_KHZ     = 13, /**< 8KHz */
+    OB_SAMPLE_RATE_16_KHZ    = 14, /**< 16KHz */
+    OB_SAMPLE_RATE_32_KHZ    = 15, /**< 32Hz */
+    OB_SAMPLE_RATE_400_HZ    = 16, /**< 400Hz*/
+    OB_SAMPLE_RATE_800_HZ    = 17, /**< 800Hz*/
+} OBIMUSampleRate,
+    OBGyroSampleRate, ob_gyro_sample_rate, OBAccelSampleRate, ob_accel_sample_rate, OB_SAMPLE_RATE;
 
 /**
  * @brief Enumeration of gyroscope ranges
  */
 typedef enum {
-    OB_GYRO_FS_UNKNOWN = 0, /**< Unknown range */
-    OB_GYRO_FS_16dps   = 1, /**< 16 degrees per second */
-    OB_GYRO_FS_31dps,       /**< 31 degrees per second */
-    OB_GYRO_FS_62dps,       /**< 62 degrees per second */
-    OB_GYRO_FS_125dps,      /**< 125 degrees per second */
-    OB_GYRO_FS_250dps,      /**< 250 degrees per second */
-    OB_GYRO_FS_500dps,      /**< 500 degrees per second */
-    OB_GYRO_FS_1000dps,     /**< 1000 degrees per second */
-    OB_GYRO_FS_2000dps,     /**< 2000 degrees per second */
+    OB_GYRO_FS_UNKNOWN = -1,
+    OB_GYRO_FS_16dps   = 1,  /**< 16 degrees per second */
+    OB_GYRO_FS_31dps   = 2,  /**< 31 degrees per second */
+    OB_GYRO_FS_62dps   = 3,  /**< 62 degrees per second */
+    OB_GYRO_FS_125dps  = 4,  /**< 125 degrees per second */
+    OB_GYRO_FS_250dps  = 5,  /**< 250 degrees per second */
+    OB_GYRO_FS_500dps  = 6,  /**< 500 degrees per second */
+    OB_GYRO_FS_1000dps = 7,  /**< 1000 degrees per second */
+    OB_GYRO_FS_2000dps = 8,  /**< 2000 degrees per second */
+    OB_GYRO_FS_400dps  = 9,  /**< 400 degrees per second */
+    OB_GYRO_FS_800dps  = 10, /**< 800 degrees per second */
 } OBGyroFullScaleRange,
     ob_gyro_full_scale_range, OB_GYRO_FULL_SCALE_RANGE;
 
@@ -620,11 +638,15 @@ typedef enum {
  * @brief Enumeration of accelerometer ranges
  */
 typedef enum {
-    OB_ACCEL_FS_UNKNOWN = 0, /**< Unknown range */
+    OB_ACCEL_FS_UNKNOWN = -1,
     OB_ACCEL_FS_2g      = 1, /**< 1x the acceleration of gravity */
-    OB_ACCEL_FS_4g,          /**< 4x the acceleration of gravity */
-    OB_ACCEL_FS_8g,          /**< 8x the acceleration of gravity */
-    OB_ACCEL_FS_16g,         /**< 16x the acceleration of gravity */
+    OB_ACCEL_FS_4g      = 2, /**< 4x the acceleration of gravity */
+    OB_ACCEL_FS_8g      = 3, /**< 8x the acceleration of gravity */
+    OB_ACCEL_FS_16g     = 4, /**< 16x the acceleration of gravity */
+    OB_ACCEL_FS_3g      = 5, /**< 3x the acceleration of gravity */
+    OB_ACCEL_FS_6g      = 6, /**< 6x the acceleration of gravity */
+    OB_ACCEL_FS_12g     = 7, /**< 12x the acceleration of gravity */
+    OB_ACCEL_FS_24g     = 8, /**< 24x the acceleration of gravity */
 } OBAccelFullScaleRange,
     ob_accel_full_scale_range, OB_ACCEL_FULL_SCALE_RANGE;
 
@@ -635,7 +657,22 @@ typedef struct {
     float x;  ///< X-direction component
     float y;  ///< Y-direction component
     float z;  ///< Z-direction component
-} OBAccelValue, OBGyroValue, ob_accel_value, ob_gyro_value;
+} OBAccelValue, OBGyroValue, OBFloat3D, ob_accel_value, ob_gyro_value, ob_float_3d;
+
+/**
+ * @brief Data structures for LiDAR scan rate
+ */
+typedef enum {
+    OB_LIDAR_SCAN_UNKNOWN = 0,
+    OB_LIDAR_SCAN_5HZ     = 1,
+    OB_LIDAR_SCAN_10HZ    = 2,
+    OB_LIDAR_SCAN_15HZ    = 3,
+    OB_LIDAR_SCAN_20HZ    = 4,
+    OB_LIDAR_SCAN_25HZ    = 5,
+    OB_LIDAR_SCAN_30HZ    = 6,
+    OB_LIDAR_SCAN_40HZ    = 7,
+} OBLiDARScanRate,
+    ob_lidar_scan_rate, OB_LIDAR_SCAN_RATE;
 
 /**
  * @brief Device state
@@ -673,9 +710,10 @@ typedef enum {
  * @brief Enumeration for device types
  */
 typedef enum {
-    OB_STRUCTURED_LIGHT_MONOCULAR_CAMERA = 0, /**< Monocular structured light camera */
-    OB_STRUCTURED_LIGHT_BINOCULAR_CAMERA = 1, /**< Binocular structured light camera */
-    OB_TOF_CAMERA                        = 2, /**< Time-of-flight camera */
+    OB_DEVICE_TYPE_UNKNOWN               = -1, /**< Unknown device type */
+    OB_STRUCTURED_LIGHT_MONOCULAR_CAMERA = 0,  /**< Monocular structured light camera */
+    OB_STRUCTURED_LIGHT_BINOCULAR_CAMERA = 1,  /**< Binocular structured light camera */
+    OB_TOF_CAMERA                        = 2,  /**< Time-of-flight camera */
 } OBDeviceType,
     ob_device_type, OB_DEVICE_TYPE;
 
@@ -726,7 +764,26 @@ typedef enum {
     OB_PRECISION_UNKNOWN,
     OB_PRECISION_COUNT,
 } OBDepthPrecisionLevel,
-    ob_depth_precision_level, OB_DEPTH_PRECISION_LEVEL;
+    ob_depth_precision_level, OB_DEPTH_PRECISION_LEVEL, OBDepthUnit, ob_depth_unit;
+
+/**
+ * @brief disparity parameters for disparity based camera
+ *
+ */
+typedef struct {
+    double  zpd;           // the distance to calib plane
+    double  zpps;          // zpps=z0/fx
+    float   baseline;      // baseline length, for monocular camera,it means the distance of laser to the center of IR-CMOS
+    double  fx;            // focus
+    uint8_t bitSize;       // disparity bit size (raw disp bit size, for example: MX6000 is 12, MX6600 is 14)
+    float   unit;          // reference units: unit=10 denote 1cm; unit=1 denote 1mm; unit=0.5 denote 0.5mm; and so on
+    float   minDisparity;  // dual disparity coefficient
+    uint8_t packMode;      // data pack mode
+    float   dispOffset;    // disparity offset, actual disp=chip disp + disp_offset
+    int32_t invalidDisp;   // invalid disparity, usually is 0, dual IR add a auxiliary value.
+    int32_t dispIntPlace;  // disp integer digits, default is 8, Gemini2 XL is 10
+    uint8_t isDualCamera;  // 0 monocular camera, 1 dual camera
+} OBDisparityParam, ob_disparity_param;
 
 /**
  * @brief Enumeration for TOF filter scene ranges
@@ -773,6 +830,37 @@ typedef struct {
     float g;  ///< Green channel component
     float b;  ///< Blue channel component
 } OBColorPoint, ob_color_point;
+
+/**
+ * @brief 3D point structure with LiDAR information
+ */
+typedef struct {
+    float    angle;      ///< angle, unit: degrees
+    float    distance;   ///< distance, unit: mm
+    uint16_t intensity;  ///< intensity, 0~2000
+} OBLiDARScanPoint, ob_lidar_scan_point;
+
+/**
+ * @brief 3D point structure with LiDAR information
+ */
+typedef struct {
+    float   x;             ///< X coordinate, unit mm
+    float   y;             ///< Y coordinate, unit mm
+    float   z;             ///< Z coordinate, unit mm
+    uint8_t reflectivity;  ///< reflectivity
+    uint8_t tag;           ///< point state
+} OBLiDARPoint, ob_lidar_point;
+
+/**
+ * @brief 3D point structure with LiDAR information
+ */
+typedef struct {
+    float   distance;      ///< distance, unit: mm
+    float   theta;         ///< azimuth angle, unit: degrees
+    float   phi;           ///< zenith angle, unit: degrees
+    uint8_t reflectivity;  ///< reflectivity
+    uint8_t tag;           ///< tag
+} OBLiDARSpherePoint, ob_lidar_sphere_point;
 
 /**
  * @brief Compression mode
@@ -830,7 +918,7 @@ typedef enum {
     /**
      * @brief Secondary synchronize mode
      * @brief Secondary device. Both process input trigger signal and output trigger signal to other devices.
-     * @brief Different sensors in a single devices receive trigger signals respectively：ext trigger -> RGB && ext trigger -> IR/Depth/TOF
+     * @brief Different sensors in a single devices receive trigger signals respectively: ext trigger -> RGB && ext trigger -> IR/Depth/TOF
      *
      * @attention With the current Gemini 2 device set to this mode, each Sensor receives the first external trigger signal
      *     after the stream is turned on and starts timing self-triggering at the set frame rate until the stream is turned off
@@ -864,9 +952,14 @@ typedef enum {
      * @brief Software trigger synchronize mode as secondary device
      * @brief The slave receives the external trigger signal (the external trigger signal comes from the soft trigger host) and outputs the trigger signal to
      * the external relay.
-     * @brief Different sensors in a single machine receive trigger signals respectively：ext trigger -> RGB && ext  trigger -> IR/Depth/TOF
+     * @brief Different sensors in a single machine receive trigger signals respectively: ext trigger -> RGB && ext  trigger -> IR/Depth/TOF
      */
     OB_SYNC_MODE_SECONDARY_SOFT_TRIGGER = 0x07,
+
+    /**
+     * @brief IR and IMU sync signal
+     */
+    OB_SYNC_MODE_IR_IMU_SYNC = 0x08,
 
     /**
      * @brief Unknown type
@@ -933,6 +1026,16 @@ typedef struct {
     uint16_t deviceId;
 
 } OBDeviceSyncConfig, ob_device_sync_config, OB_DEVICE_SYNC_CONFIG;
+
+/**
+ * @brief Preset tag
+ */
+typedef enum {
+    OB_DEVICE_DEPTH_WORK_MODE = 0,
+    OB_CUSTOM_DEPTH_WORK_MODE = 1,
+} OBDepthWorkModeTag,
+    ob_depth_work_mode_tag;
+
 /**
  * @brief Depth work mode
  */
@@ -946,6 +1049,11 @@ typedef struct {
      * @brief Name of work mode
      */
     char name[32];
+    /**
+     * @brief Preset tag
+     */
+    OBDepthWorkModeTag tag;
+
 } OBDepthWorkMode, ob_depth_work_mode;
 
 /**
@@ -965,6 +1073,16 @@ typedef enum {
     OB_HOLE_FILL_FAREST  = 2,  // FILL_FAREST
 } OBHoleFillingMode,
     ob_hole_filling_mode;
+
+typedef struct {
+    uint8_t radius;  // window_size
+} OBSpatialFastFilterParams, ob_spatial_fast_filter_params;
+
+typedef struct {
+    uint8_t  radius;     // window_size
+    uint8_t  magnitude;  // magnitude
+    uint16_t disp_diff;  // smooth_delta
+} OBSpatialModerateFilterParams, ob_spatial_moderate_filter_params;
 
 typedef struct {
     uint8_t  magnitude;  // magnitude
@@ -990,7 +1108,7 @@ typedef struct {
 } OBEdgeNoiseRemovalFilterParams, ob_edge_noise_removal_filter_params;
 
 /**
- * @brief 去噪方式
+ * @brief Denoising method
  */
 typedef enum OB_DDO_NOISE_REMOVAL_TYPE {
     OB_NR_LUT     = 0,  // SPLIT
@@ -1037,56 +1155,6 @@ typedef enum {
     OB_CMD_VERSION_INVALID   = (uint16_t)0xffff,  ///< Invalid version
 } OB_CMD_VERSION,
     OBCmdVersion, ob_cmd_version;
-
-/**
- * @brief Internal API for future publication
- *
- * @note This data type matches OBCmdVersion of one propertyId. PropertyId has multiple OBCmdVersion, and different OBCmdVersion of this propertyId has
- * different data types. PropertyId and OBCmdVersion match only one data type. itemCount is the number of data types contained in data bytes. C language and C++
- * have differences.
- *
- * C language:
- * data's type is a uint8_t pointer, and the user parses data to the destination type.
- * itemTypeSize == 1, dataSize == itemCount;
- *
- * C++:
- * data's type is the propertyId and OBCmdVersion's data type.
- * itemTypeSize = sizeof(T), itemCount = dataSize / itemTypeSize;
- */
-typedef struct OBDataBundle {
-    /**
-     * @brief OBCmdVersion of propertyId
-     */
-    OBCmdVersion cmdVersion;
-
-    /**
-     * @brief Data containing itemCount of elements
-     *
-     * @note void *data = new T[itemCount];
-     */
-    void *data;
-
-    /**
-     * @brief Data size in bytes
-     *
-     * @note dataSize == itemTypeSize * itemCount
-     */
-    uint32_t dataSize;
-
-    /**
-     * @brief Size of data item
-     *
-     * @note C language: itemTypeSize = 1, C++: itemTypeSize = sizeof(T)
-     */
-    uint32_t itemTypeSize;
-
-    /**
-     * @brief Count of data item
-     *
-     * @note itemCount = dataSize / itemTypeSize; 0 == dataSize % itemTypeSize;
-     */
-    uint32_t itemCount;
-} OBDataBundle, ob_data_bundle;
 
 /**
  * @brief IP address configuration for network devices (IPv4)
@@ -1175,7 +1243,7 @@ typedef enum {
     /**
      * @brief Only FrameSet that contains all types of data frames will be output
      */
-    OB_FRAME_AGGREGATE_OUTPUT_FULL_FRAME_REQUIRE = 0,
+    OB_FRAME_AGGREGATE_OUTPUT_ALL_TYPE_FRAME_REQUIRE = 0,
 
     /**
      * @brief Color Frame Require output mode
@@ -1191,8 +1259,15 @@ typedef enum {
      * @attention In this mode, the user may return null when getting the specified type of data frame from the acquired FrameSet
      */
     OB_FRAME_AGGREGATE_OUTPUT_ANY_SITUATION,
+    /**
+     * @brief Disable Frame Aggreate
+     *
+     * @attention In this mode, All types of data frames will output independently.
+     */
+    OB_FRAME_AGGREGATE_OUTPUT_DISABLE,
 } OB_FRAME_AGGREGATE_OUTPUT_MODE,
     OBFrameAggregateOutputMode, ob_frame_aggregate_output_mode;
+#define OB_FRAME_AGGREGATE_OUTPUT_FULL_FRAME_REQUIRE OB_FRAME_AGGREGATE_OUTPUT_ALL_TYPE_FRAME_REQUIRE
 
 /**
  * @brief Enumeration of point cloud coordinate system types
@@ -1220,6 +1295,25 @@ typedef enum {
     OBDeviceDevelopmentMode, ob_device_development_mode;
 
 /**
+ * @brief Color camera preset
+ */
+typedef enum {
+    /**
+     * @brief Suitable for standard single-color-temperature lighting environments (e.g., typical indoor white LED or office lighting).
+     * This strategy serves as the system's default mode to achieve a balanced and natural white balance effect.
+     */
+    OB_DEFAULT = 0,
+
+    /**
+     * @brief Warm Biased AWB for mixed lighting is designed for mixed illumination combining standard white light and low-CCT sources (warm/yellow/red).
+     * This profile applies a controlled warm bias after AWB convergence to reduce blue cast in white-lit regions and deliver a more consistent,
+     * warm-leaning appearance in mixed-light scenes.
+     */
+    OB_WARM_BIASED_AWB = 1,
+} OBColorPreset,
+    ob_color_preset;
+
+/**
  * @brief The synchronization mode of the device.
  */
 typedef enum {
@@ -1242,8 +1336,8 @@ typedef enum {
      * @brief primary mode
      * @brief The device is the primary device in the multi-device system, it will output the trigger signal via VSYNC_OUT pin on synchronization port by
      * default.
-     * @brief The Color and Depth should be set to same frame rates, the Color and Depth will be synchronized and can be adjusted by @ref colorDelayUs, @ref
-     * depthDelayUs or @ref trigger2ImageDelayUs.
+     * @brief The Color and Depth should be set to same frame rates, the Color and Depth will be synchronized and can be adjusted by @ref
+     * OBMultiDeviceSyncConfig::colorDelayUs, @ref OBMultiDeviceSyncConfig::depthDelayUs or @ref OBMultiDeviceSyncConfig::trigger2ImageDelayUs.
      */
     OB_MULTI_DEVICE_SYNC_MODE_PRIMARY = 1 << 2,
 
@@ -1251,8 +1345,8 @@ typedef enum {
      * @brief secondary mode
      * @brief The device is the secondary device in the multi-device system, it will receive the trigger signal via VSYNC_IN pin on synchronization port. It
      * will out the trigger signal via VSYNC_OUT pin on synchronization port by default.
-     * @brief The Color and Depth should be set to same frame rates, the Color and Depth will be synchronized and can be adjusted by @ref colorDelayUs, @ref
-     * depthDelayUs or @ref trigger2ImageDelayUs.
+     * @brief The Color and Depth should be set to same frame rates, the Color and Depth will be synchronized and can be adjusted by @ref
+     * OBMultiDeviceSyncConfig::colorDelayUs, @ref OBMultiDeviceSyncConfig::depthDelayUs or @ref OBMultiDeviceSyncConfig::trigger2ImageDelayUs.
      * @brief After starting the stream, the device will wait for the trigger signal to start capturing images, and will stop capturing images when the trigger
      * signal is stopped.
      *
@@ -1264,8 +1358,8 @@ typedef enum {
      * @brief secondary synced mode
      * @brief The device is the secondary device in the multi-device system, it will receive the trigger signal via VSYNC_IN pin on synchronization port. It
      * will out the trigger signal via VSYNC_OUT pin on synchronization port by default.
-     * @brief The Color and Depth should be set to same frame rates, the Color and Depth will be synchronized and can be adjusted by @ref colorDelayUs, @ref
-     * depthDelayUs or @ref trigger2ImageDelayUs.
+     * @brief The Color and Depth should be set to same frame rates, the Color and Depth will be synchronized and can be adjusted by @ref
+     * OBMultiDeviceSyncConfig::colorDelayUs, @ref OBMultiDeviceSyncConfig::depthDelayUs or @ref OBMultiDeviceSyncConfig::trigger2ImageDelayUs.
      * @brief After starting the stream, the device will be immediately start capturing images, and will adjust the capture time when the trigger signal is
      * received to synchronize with the primary device. If the trigger signal is stopped, the device will still capture images.
      *
@@ -1277,9 +1371,9 @@ typedef enum {
      * @brief software triggering mode
      * @brief The device will start one time image capture after receiving the capture command and will output the trigger signal via VSYNC_OUT pin by default.
      * The capture command can be sent form host by call @ref ob_device_trigger_capture. The number of images captured each time can be set by @ref
-     * framesPerTrigger.
-     * @brief The Color and Depth should be set to same frame rates, the Color and Depth will be synchronized and can be adjusted by @ref colorDelayUs, @ref
-     * depthDelayUs or @ref trigger2ImageDelayUs.
+     * OBMultiDeviceSyncConfig::framesPerTrigger.
+     * @brief The Color and Depth should be set to same frame rates, the Color and Depth will be synchronized and can be adjusted by @ref
+     * OBMultiDeviceSyncConfig::colorDelayUs, @ref OBMultiDeviceSyncConfig::depthDelayUs or @ref OBMultiDeviceSyncConfig::trigger2ImageDelayUs.
      *
      * @brief The frequency of the user call @ref ob_device_trigger_capture to send the capture command multiplied by the number of frames per trigger should be
      * less than the frame rate of the stream profile which is set when starting the stream.
@@ -1289,9 +1383,9 @@ typedef enum {
     /**
      * @brief hardware triggering mode
      * @brief The device will start one time image capture after receiving the trigger signal via VSYNC_IN pin on synchronization port and will output the
-     * trigger signal via VSYNC_OUT pin by default. The number of images captured each time can be set by @ref framesPerTrigger.
-     * @brief The Color and Depth should be set to same frame rates, the Color and Depth will be synchronized and can be adjusted by @ref colorDelayUs, @ref
-     * depthDelayUs or @ref trigger2ImageDelayUs.
+     * trigger signal via VSYNC_OUT pin by default. The number of images captured each time can be set by @ref OBMultiDeviceSyncConfig::framesPerTrigger.
+     * @brief The Color and Depth should be set to same frame rates, the Color and Depth will be synchronized and can be adjusted by @ref
+     * OBMultiDeviceSyncConfig::colorDelayUs, @ref OBMultiDeviceSyncConfig::depthDelayUs or @ref OBMultiDeviceSyncConfig::trigger2ImageDelayUs.
      *
      * @attention The frequency of the trigger signal multiplied by the number of frames per trigger should be less than the frame rate of the stream profile
      * which is set when starting the stream.
@@ -1302,6 +1396,15 @@ typedef enum {
      */
     OB_MULTI_DEVICE_SYNC_MODE_HARDWARE_TRIGGERING = 1 << 6,
 
+    /**
+     * @brief IR and IMU sync mode
+     */
+    OB_MULTI_DEVICE_SYNC_MODE_IR_IMU_SYNC = 1 << 7,
+
+    /**
+     * @brief The device captures data in software synchronization mode, starting acquisition based on the system time.
+     */
+    OB_MULTI_DEVICE_SYNC_MODE_SOFTWARE_SYNCED = 1 << 8,
 } ob_multi_device_sync_mode,
     OBMultiDeviceSyncMode;
 
@@ -1312,19 +1415,19 @@ typedef struct {
     /**
      * @brief The sync mode of the device.
      */
-    ob_multi_device_sync_mode syncMode;
+    OBMultiDeviceSyncMode syncMode;
 
     /**
      * @brief The delay time of the depth image capture after receiving the capture command or trigger signal in microseconds.
      *
-     * @attention This parameter is only valid for some models， please refer to the product manual for details.
+     * @attention This parameter is only valid for some models, please refer to the product manual for details.
      */
     int depthDelayUs;
 
     /**
      * @brief The delay time of the color image capture after receiving the capture command or trigger signal in microseconds.
      *
-     * @attention This parameter is only valid for some models， please refer to the product manual for details.
+     * @attention This parameter is only valid for some models, please refer to the product manual for details.
      */
     int colorDelayUs;
 
@@ -1440,13 +1543,51 @@ typedef struct {
     int16_t y1_bottom;
 } AE_ROI, ob_region_of_interest, OBRegionOfInterest;
 
+typedef enum {
+    OB_FILTER_CONFIG_VALUE_TYPE_INVALID = -1,
+    OB_FILTER_CONFIG_VALUE_TYPE_INT     = 0,
+    OB_FILTER_CONFIG_VALUE_TYPE_FLOAT   = 1,
+    OB_FILTER_CONFIG_VALUE_TYPE_BOOLEAN = 2,
+} OBFilterConfigValueType,
+    ob_filter_config_value_type;
+/**
+ * @brief  Configuration Item for the filter
+ */
+typedef struct {
+    const char             *name;  ///< Name of the configuration item
+    OBFilterConfigValueType type;  ///< Value type of the configuration item
+    double                  min;   ///< Minimum value casted to double
+    double                  max;   ///< Maximum value casted to double
+    double                  step;  ///< Step value casted to double
+    double                  def;   ///< Default value casted to double
+    const char             *desc;  ///< Description of the configuration item
+} OBFilterConfigSchemaItem, ob_filter_config_schema_item;
 
-typedef struct{
-  uint8_t enable;
-  uint8_t offset0;
-  uint8_t offset1;
-  uint8_t reserved;
-}DISP_OFFSET_CONFIG,ob_disp_offset_config,OBDispOffsetConfig;
+/**
+ * @brief struct of serial number
+ */
+typedef struct {
+    char numberStr[16];
+} OBDeviceSerialNumber, ob_device_serial_number, OBSerialNumber, ob_serial_number;
+
+/**
+ * @brief Disparity offset interleaving configuration
+ */
+typedef struct {
+    uint8_t enable;
+    uint8_t offset0;
+    uint8_t offset1;
+    uint8_t reserved;
+} OBDispOffsetConfig, ob_disp_offset_config;
+
+/**
+ * @details Defines the original resolution and hardware decimation factor.
+ */
+typedef struct {
+    uint32_t originWidth;   ///< Origin width
+    uint32_t originHeight;  ///< Origin height
+    uint32_t factor;        ///< Decimation factor
+} OBHardwareDecimationConfig, ob_hardware_decimation_config;
 
 /**
  * @brief Frame metadata types
@@ -1541,14 +1682,14 @@ typedef enum {
 
     /**
      * @brief Power line frequency
-     * @brief For anti-flickering， 0：Close， 1： 50Hz， 2： 60Hz， 3： Auto
+     * @brief For anti-flickering, 0: Close, 1: 50Hz, 2: 60Hz, 3: Auto
      */
     OB_FRAME_METADATA_TYPE_POWER_LINE_FREQUENCY = 15,
 
     /**
      * @brief Low light compensation
      *
-     * @attention The low light compensation is a feature inside the device，and can not manually control it.
+     * @attention The low light compensation is a feature inside the device, and can not manually control it.
      */
     OB_FRAME_METADATA_TYPE_LOW_LIGHT_COMPENSATION = 16,
 
@@ -1632,6 +1773,16 @@ typedef enum {
     OB_FRAME_METADATA_TYPE_GPIO_INPUT_DATA = 31,
 
     /**
+     * @brief disparity search offset value
+     */
+    OB_FRAME_METADATA_TYPE_DISPARITY_SEARCH_OFFSET = 32,
+
+    /**
+     * @brief disparity search range
+     */
+    OB_FRAME_METADATA_TYPE_DISPARITY_SEARCH_RANGE = 33,
+
+    /**
      * @brief The number of frame metadata types, using for types iterating
      * @attention It is not a valid frame metadata type
      */
@@ -1639,71 +1790,138 @@ typedef enum {
 } ob_frame_metadata_type,
     OBFrameMetadataType;
 
+/**
+ * @brief For Linux, there are two ways to access the UVC device, libuvc and v4l2. The backend type is used to select the backend to access the device.
+ *
+ */
+typedef enum {
+    /**
+     * @brief Auto detect system capabilities and device hint to select backend
+     *
+     */
+    OB_UVC_BACKEND_TYPE_AUTO,
+
+    /**
+     * @brief Use libuvc backend to access the UVC device
+     *
+     */
+    OB_UVC_BACKEND_TYPE_LIBUVC,
+
+    /**
+     * @brief Use v4l2 backend to access the UVC device
+     *
+     */
+    OB_UVC_BACKEND_TYPE_V4L2,
+
+    /**
+     * @brief Use MSMF backend to access the UVC device
+     */
+    OB_UVC_BACKEND_TYPE_MSMF,
+} ob_uvc_backend_type,
+    OBUvcBackendType;
+
+/**
+ * @brief The playback status of the media
+ */
+typedef enum {
+    OB_PLAYBACK_UNKNOWN,
+    OB_PLAYBACK_PLAYING, /**< The media is playing */
+    OB_PLAYBACK_PAUSED,  /**< The media is paused */
+    OB_PLAYBACK_STOPPED, /**< The media is stopped */
+    OB_PLAYBACK_COUNT,
+} ob_playback_status,
+    OBPlaybackStatus;
+
+/**
+ * @brief Intra-camera Sync Reference based on the exposure start time, the exposure middle time, or the exposure end time.
+ */
+typedef enum {
+    OB_START_OF_EXPOSURE = 0, /**< start of exposure */
+    OB_MIDDLE_OF_EXPOSURE,    /**< middle of exposure */
+    OB_END_OF_EXPOSURE,       /**< end of exposure  */
+} ob_intra_camera_sync_reference,
+    OBIntraCameraSyncReference;
+
 // For compatibility
 #define OB_FRAME_METADATA_TYPE_LASER_POWER_MODE OB_FRAME_METADATA_TYPE_LASER_POWER_LEVEL
 #define OB_FRAME_METADATA_TYPE_EMITTER_MODE OB_FRAME_METADATA_TYPE_LASER_STATUS
+#define START_OF_EXPOSURE OB_START_OF_EXPOSURE
+#define MIDDLE_OF_EXPOSURE OB_MIDDLE_OF_EXPOSURE
+#define END_OF_EXPOSURE OB_END_OF_EXPOSURE
+
+/**
+ * @brief Device access mode for GigE network device
+ */
+typedef enum {
+    OB_DEVICE_ACCESS_DENIED    = 0,  ///< No access. This value is only used as a return value
+    OB_DEVICE_EXCLUSIVE_ACCESS = 1,  ///< Exclusive access: full read/write, no other application allowed; can preempt existing monitor access
+    OB_DEVICE_CONTROL_ACCESS   = 2,  ///< Control access: read/write allowed; other applications permitted read-only monitor access
+    OB_DEVICE_MONITOR_ACCESS   = 3,  ///< Monitor access: read-only; no write or control privileges
+    OB_DEVICE_DEFAULT_ACCESS   = 4,  ///< Default access: control access for capable devices, ignored otherwise
+} ob_device_access_mode,
+    OBDeviceAccessMode;
 
 /**
  * @brief Callback for file transfer
  *
- * @param state Transmission status
- * @param message Transfer status information
- * @param percent Transfer progress percentage
- * @param user_data User-defined data
+ * @param[in] state Transmission status
+ * @param[in] message Transfer status information
+ * @param[in] percent Transfer progress percentage
+ * @param[in] user_data User-defined data
  */
 typedef void (*ob_file_send_callback)(ob_file_tran_state state, const char *message, uint8_t percent, void *user_data);
 
 /**
  * @brief Callback for firmware upgrade
  *
- * @param state Upgrade status
- * @param message Upgrade status information
- * @param percent Upgrade progress percentage
- * @param user_data User-defined data
+ * @param[in] state Upgrade status
+ * @param[in] message Upgrade status information
+ * @param[in] percent Upgrade progress percentage
+ * @param[in] user_data User-defined data
  */
-typedef void (*ob_device_upgrade_callback)(ob_upgrade_state state, const char *message, uint8_t percent, void *user_data);
+typedef void (*ob_device_fw_update_callback)(ob_fw_update_state state, const char *message, uint8_t percent, void *user_data);
 
 /**
  * @brief Callback for device status
  *
- * @param state Device status
- * @param message Device status information
- * @param user_data User-defined data
+ * @param[in] state Device status
+ * @param[in] message Device status information
+ * @param[in] user_data User-defined data
  */
 typedef void (*ob_device_state_callback)(ob_device_state state, const char *message, void *user_data);
 
 /**
  * @brief Callback for writing data
  *
- * @param state Write data status
- * @param percent Write data percentage
- * @param user_data User-defined data
+ * @param[in] state Write data status
+ * @param[in] percent Write data percentage
+ * @param[in] user_data User-defined data
  */
 typedef void (*ob_set_data_callback)(ob_data_tran_state state, uint8_t percent, void *user_data);
 
 /**
  * @brief Callback for reading data
  *
- * @param state Read data status
- * @param dataChunk Read the returned data block
- * @param user_data User-defined data
+ * @param[in] state Read data status
+ * @param[in] dataChunk Read the returned data block
+ * @param[in] user_data User-defined data
  */
 typedef void (*ob_get_data_callback)(ob_data_tran_state state, ob_data_chunk *dataChunk, void *user_data);
 
 /**
  * @brief Callback for media status (recording and playback)
  *
- * @param state Condition
- * @param user_data User-defined data
+ * @param[in] state Condition
+ * @param[in] user_data User-defined data
  */
 typedef void (*ob_media_state_callback)(ob_media_state state, void *user_data);
 
 /**
  * @brief Callback for device change
  *
- * @param removed List of deleted (dropped) devices
- * @param added List of added (online) devices
- * @param user_data User-defined data
+ * @param[in] removed List of deleted (dropped) devices
+ * @param[in] added List of added (online) devices
+ * @param[in] user_data User-defined data
  */
 typedef void (*ob_device_changed_callback)(ob_device_list *removed, ob_device_list *added, void *user_data);
 
@@ -1713,8 +1931,8 @@ typedef void (*ob_device_changed_callback)(ob_device_list *removed, ob_device_li
 /**
  * @brief Callback for frame
  *
- * @param frame Frame object
- * @param user_data User-defined data
+ * @param[in] frame Frame object
+ * @param[in] user_data User-defined data
  */
 typedef void (*ob_frame_callback)(ob_frame *frame, void *user_data);
 #define ob_filter_callback ob_frame_callback
@@ -1723,54 +1941,110 @@ typedef void (*ob_frame_callback)(ob_frame *frame, void *user_data);
 /**
  * @brief Callback for frameset
  *
- * @param frameset Frameset object
- * @param user_data User-defined data
+ * @param[in] frameset Frameset object
+ * @param[in] user_data User-defined data
  */
 typedef void (*ob_frameset_callback)(ob_frame *frameset, void *user_data);
 
 /**
  * @brief Customize the delete callback
  *
- * @param buffer Data that needs to be deleted
- * @param user_data User-defined data
+ * @param[in] buffer Data that needs to be deleted
+ * @param[in] user_data User-defined data
  */
-typedef void(ob_frame_destroy_callback)(void *buffer, void *user_data);
+typedef void(ob_frame_destroy_callback)(uint8_t *buffer, void *user_data);
 
 /**
  * @brief Callback for receiving log
  *
- * @param severity Current log level
- * @param message Log message
- * @param user_data User-defined data
+ * @param[in] severity Current log level
+ * @param[in] message Log message
+ * @param[in] user_data User-defined data
  */
 typedef void(ob_log_callback)(ob_log_severity severity, const char *message, void *user_data);
+
+typedef void (*ob_playback_status_changed_callback)(ob_playback_status status, void *user_data);
+
+/**
+ * @brief Callback Id
+ */
+typedef uint64_t OBCallbackId, ob_callback_id;
+#define INVALID_CALLBACK_ID (0)
+
+/**
+ * @brief Check if the sensor_type is a video sensor
+ *
+ * @param[in] sensor_type Sensor type to check
+ * @return True if sensor_type is a video sensor, false otherwise
+ */
+#define ob_is_video_sensor_type(sensor_type)                                                                                                         \
+    (sensor_type == OB_SENSOR_COLOR || sensor_type == OB_SENSOR_COLOR_LEFT || sensor_type == OB_SENSOR_COLOR_RIGHT || sensor_type == OB_SENSOR_DEPTH \
+     || sensor_type == OB_SENSOR_IR || sensor_type == OB_SENSOR_IR_LEFT || sensor_type == OB_SENSOR_IR_RIGHT || sensor_type == OB_SENSOR_CONFIDENCE)
+
+/**
+ * @brief check if the stream_type is a video stream
+ *
+ * @param[in] stream_type Stream type to check
+ * @return True if stream_type is a video stream, false otherwise
+ */
+#define ob_is_video_stream_type(stream_type)                                                                                                         \
+    (stream_type == OB_STREAM_COLOR || stream_type == OB_STREAM_COLOR_LEFT || stream_type == OB_STREAM_COLOR_RIGHT || stream_type == OB_STREAM_DEPTH \
+     || stream_type == OB_STREAM_IR || stream_type == OB_STREAM_IR_LEFT || stream_type == OB_STREAM_IR_RIGHT || stream_type == OB_STREAM_VIDEO       \
+     || stream_type == OB_STREAM_CONFIDENCE)
 
 /**
  * @brief Check if sensor_type is an IR sensor
  *
- * @param sensor_type Sensor type to check
+ * @param[in] sensor_type Sensor type to check
  * @return True if sensor_type is an IR sensor, false otherwise
  */
 #define is_ir_sensor(sensor_type) (sensor_type == OB_SENSOR_IR || sensor_type == OB_SENSOR_IR_LEFT || sensor_type == OB_SENSOR_IR_RIGHT)
 #define isIRSensor is_ir_sensor
 
 /**
+ * @brief Check if sensor_type is an Color sensor
+ *
+ * @param sensor_type Sensor type to check
+ * @return True if sensor_type is an Color sensor, false otherwise
+ */
+#define is_color_sensor(sensor_type) (sensor_type == OB_SENSOR_COLOR || sensor_type == OB_SENSOR_COLOR_LEFT || sensor_type == OB_SENSOR_COLOR_RIGHT)
+#define isColorSensor is_color_sensor
+
+/**
  * @brief Check if stream_type is an IR stream
  *
- * @param stream_type Stream type to check
+ * @param[in] stream_type Stream type to check
  * @return True if stream_type is an IR stream, false otherwise
  */
 #define is_ir_stream(stream_type) (stream_type == OB_STREAM_IR || stream_type == OB_STREAM_IR_LEFT || stream_type == OB_STREAM_IR_RIGHT)
 #define isIRStream is_ir_stream
 
 /**
+ * @brief Check if stream_type is an Color stream
+ *
+ * @param stream_type Stream type to check
+ * @return True if stream_type is an Color stream, false otherwise
+ */
+#define is_color_stream(stream_type) (stream_type == OB_STREAM_COLOR || stream_type == OB_STREAM_COLOR_LEFT || stream_type == OB_STREAM_COLOR_RIGHT)
+#define isColorStream is_color_stream
+
+/**
  * @brief Check if frame_type is an IR frame
  *
- * @param frame_type Frame type to check
+ * @param[in] frame_type Frame type to check
  * @return True if frame_type is an IR frame, false otherwise
  */
 #define is_ir_frame(frame_type) (frame_type == OB_FRAME_IR || frame_type == OB_FRAME_IR_LEFT || frame_type == OB_FRAME_IR_RIGHT)
 #define isIRFrame is_ir_frame
+
+/**
+ * @brief Check if frame_type is an Color frame
+ *
+ * @param frame_type Frame type to check
+ * @return True if frame_type is an Color frame, false otherwise
+ */
+#define is_color_frame(frame_type) (frame_type == OB_FRAME_COLOR || frame_type == OB_FRAME_COLOR_LEFT || frame_type == OB_FRAME_COLOR_RIGHT)
+#define isColorFrame is_color_frame
 
 /**
  * @brief The default Decrypt Key
