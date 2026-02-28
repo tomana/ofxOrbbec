@@ -427,10 +427,18 @@ void ofxOrbbecCamera::threadedFunction(){
                         // Apply post-processing filters to raw depth frame
                         depthFrame = applyDepthFilters(depthFrame);
 
-                        mDepthPixels = processFrame(depthFrame);
+                        auto tmpDepthPixels = processFrame(depthFrame);
+                        ofFloatPixels tmpDepthPixelsF;
                         if (mCurrentSettings.bDepthFloat) {
-                            mDepthPixelsF = processFrameFloatPixels(depthFrame);
+                            tmpDepthPixelsF = processFrameFloatPixels(depthFrame);
                         }
+                        // Lock while swapping pixel buffers — main thread reads these
+                        lock();
+                        mDepthPixels = std::move(tmpDepthPixels);
+                        if (mCurrentSettings.bDepthFloat) {
+                            mDepthPixelsF = std::move(tmpDepthPixelsF);
+                        }
+                        unlock();
                         if( mCurrentSettings.bPointCloud && !mCurrentSettings.bPointCloudRGB ){
                             try {
                                 std::shared_ptr<ob::Frame> pointCloudFrame = pointCloud->process(frameSet);
@@ -463,8 +471,11 @@ void ofxOrbbecCamera::threadedFunction(){
                             std::cerr.flush();
                         }
                         
-                        mColorPixels = processFrame(colorFrame);
-                        
+                        auto tmpColorPixels = processFrame(colorFrame);
+                        lock();
+                        mColorPixels = std::move(tmpColorPixels);
+                        unlock();
+
                         static int pixelLogCounter = 0;
                         if(pixelLogCounter++ < 5) {
                             std::cerr << ">>>>> mColorPixels allocated: " << mColorPixels.isAllocated() 
