@@ -2,6 +2,7 @@
 
 #include "libobsensor/ObSensor.hpp"
 #include "libobsensor/hpp/Error.hpp"
+#include "libobsensor/hpp/Filter.hpp"
 #include <opencv2/opencv.hpp>
 
 
@@ -41,12 +42,22 @@ struct Settings{
     FrameType irFrameSize;
 
     bool bColor = false;
-    bool bDepth = false; 
+    bool bDepth = false;
     bool bIR = false;
     bool bPointCloud = false;
-    bool bPointCloudRGB = false; 
-    
+    bool bPointCloudRGB = false;
+    bool bDepthMesh = false;  // Build xyTables for GPU mesh without PointCloudFilter overhead
+    bool bAlignD2C = false;   // Enable depth-to-color alignment (HW then SW fallback) without CPU point cloud
+
     bool bIMU = false;
+    bool bDepthFloat = false;  // Enable getDepthPixelsF(); off by default (saves ~1.4 MB alloc/frame)
+
+    // Depth post-processing filters (applied in order before pixel conversion)
+    bool bTemporalFilter = false;          // Smooth depth across frames
+    bool bSpatialFilter = false;           // Edge-preserving spatial smoothing
+    bool bHoleFillingFilter = false;       // Fill missing depth pixels
+    bool bNoiseRemovalFilter = false;      // Remove small noise scatter
+    bool bEdgeNoiseRemovalFilter = false;  // Remove noise at depth edges
 };
 
 };
@@ -82,6 +93,15 @@ class ofxOrbbecCamera : public ofThread{
 
         const std::vector <glm::vec3> &getPointCloud() const;
         const ofMesh &getPointCloudMesh() const;
+
+        // XY unprojection tables — available after open() when bDepthMesh or bPointCloud is set.
+        // xTable[row*width+col] and yTable[row*width+col] give the per-pixel ray directions so that:
+        //   X = xTable[i] * depth_mm,  Y = yTable[i] * depth_mm,  Z = depth_mm
+        bool           isXYTableReady()    const { return xyTables.xTable != nullptr && !xyTableData.empty(); }
+        const float*   getXYTableX()       const { return xyTables.xTable; }
+        const float*   getXYTableY()       const { return xyTables.yTable; }
+        int            getXYTableWidth()   const { return xyTables.width; }
+        int            getXYTableHeight()  const { return xyTables.height; }
         
         glm::vec3 getGyro() const {
             return gyro;
@@ -91,6 +111,29 @@ class ofxOrbbecCamera : public ofThread{
         }
         
         static void setOrbbecLogLevel(OBLogSeverity level);
+
+        // --- Depth post-processing filter control ---
+        // These can be called at any time to enable/disable/configure filters.
+        // Filters are applied to raw depth frames before pixel conversion.
+        void enableTemporalFilter(bool enable);
+        void enableSpatialFilter(bool enable);
+        void enableHoleFillingFilter(bool enable);
+        void enableNoiseRemovalFilter(bool enable);
+        void enableEdgeNoiseRemovalFilter(bool enable);
+
+        // Fine-tuning (call after open())
+        void setTemporalFilterWeight(float weight);       // 0-1: blend factor (higher = more smoothing)
+        void setTemporalFilterDiffScale(float diffScale);  // sensitivity to depth changes
+        void setSpatialFilterParams(OBSpatialAdvancedFilterParams params);
+        void setHoleFillingMode(OBHoleFillingMode mode);
+
+        // Query filter state
+        bool isTemporalFilterEnabled() const;
+        bool isSpatialFilterEnabled() const;
+        bool isHoleFillingFilterEnabled() const;
+        bool isNoiseRemovalFilterEnabled() const;
+        bool isEdgeNoiseRemovalFilterEnabled() const;
+
     protected:
         void threadedFunction() override; 
         void clear(); 
@@ -152,8 +195,17 @@ class ofxOrbbecCamera : public ofThread{
         OBXYTables xyTables;
         std::vector <float> xyTableData;
         std::vector <uint8_t> mPointcloudData;
-        bool bConnected = false; 
-        float mTimeSinceFrame = 0; 
+        bool bConnected = false;
+        float mTimeSinceFrame = 0;
+
+        // Depth post-processing filters
+        std::shared_ptr<ob::TemporalFilter>       mTemporalFilter;
+        std::shared_ptr<ob::SpatialAdvancedFilter> mSpatialFilter;
+        std::shared_ptr<ob::HoleFillingFilter>     mHoleFillingFilter;
+        std::shared_ptr<ob::NoiseRemovalFilter>    mNoiseRemovalFilter;
+        std::shared_ptr<ob::EdgeNoiseRemovalFilter> mEdgeNoiseRemovalFilter;
+        void setupDepthFilters();
+        std::shared_ptr<ob::Frame> applyDepthFilters(std::shared_ptr<ob::Frame> frame);
         glm::vec3 gyro;
         glm::vec3 accel;
         ofThreadChannel<glm::vec3> gyroQueue;

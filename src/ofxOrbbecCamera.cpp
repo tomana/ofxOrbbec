@@ -63,6 +63,12 @@ void ofxOrbbecCamera::clear(){
         ofLogError("ofxOrbbecCamera::clear") << "function:" << e.getName() << "\nargs:" << e.getArgs() << "\nmessage:" << e.getMessage() << "\ntype:" << e.getExceptionType();
     }
 
+    mTemporalFilter.reset();
+    mSpatialFilter.reset();
+    mHoleFillingFilter.reset();
+    mNoiseRemovalFilter.reset();
+    mEdgeNoiseRemovalFilter.reset();
+
     mCurrentSettings = ofxOrbbec::Settings();
     bNewFrameColor = bNewFrameDepth = bNewFrameIR = false;
     mInternalColorFrameNo = mInternalDepthFrameNo = 0;
@@ -195,27 +201,29 @@ bool ofxOrbbecCamera::open(ofxOrbbec::Settings aSettings){
                 config->enableStream(colorProfile);
             }
 
-            if( aSettings.bPointCloud ){
-                if( aSettings.bColor && aSettings.bPointCloudRGB ){
-                    
-					// Try find supported depth to color align hardware mode profile
-					auto depthProfileList = mPipe->getD2CDepthProfileList(colorProfile, ALIGN_D2C_HW_MODE);
-					if(depthProfileList->count() > 0) {
-						config->setAlignMode(ALIGN_D2C_HW_MODE);
-					}
-					else {
-						// Try find supported depth to color align software mode profile
-						auto depthProfileList = mPipe->getD2CDepthProfileList(colorProfile, ALIGN_D2C_SW_MODE);
-						if(depthProfileList->count() > 0) {
-							config->setAlignMode(ALIGN_D2C_SW_MODE);
-						}else{
-							config->setAlignMode(ALIGN_DISABLE);
-						}
-					}
-                    
-                }else{
-                    config->setAlignMode(ALIGN_DISABLE);
-				}
+            // Enable D2C alignment when requested by bPointCloudRGB or bAlignD2C
+            bool needD2C = (aSettings.bPointCloud && aSettings.bColor && aSettings.bPointCloudRGB)
+                         || (aSettings.bAlignD2C && aSettings.bColor);
+            if( needD2C ){
+                // Try find supported depth to color align hardware mode profile
+                auto depthProfileList = mPipe->getD2CDepthProfileList(colorProfile, ALIGN_D2C_HW_MODE);
+                if(depthProfileList->count() > 0) {
+                    config->setAlignMode(ALIGN_D2C_HW_MODE);
+                    ofLogNotice("ofxOrbbecCamera") << "D2C alignment: hardware mode";
+                }
+                else {
+                    // Try find supported depth to color align software mode profile
+                    auto depthProfileList = mPipe->getD2CDepthProfileList(colorProfile, ALIGN_D2C_SW_MODE);
+                    if(depthProfileList->count() > 0) {
+                        config->setAlignMode(ALIGN_D2C_SW_MODE);
+                        ofLogNotice("ofxOrbbecCamera") << "D2C alignment: software mode";
+                    }else{
+                        config->setAlignMode(ALIGN_DISABLE);
+                        ofLogWarning("ofxOrbbecCamera") << "D2C alignment: no supported mode found";
+                    }
+                }
+            } else if( aSettings.bPointCloud ){
+                config->setAlignMode(ALIGN_DISABLE);
             }
             
             if( aSettings.bIMU ) {
@@ -235,52 +243,99 @@ bool ofxOrbbecCamera::open(ofxOrbbec::Settings aSettings){
                 }
             }
 
+            // Ensure depth and color frame rates match if both are enabled
+            if (aSettings.bDepth && aSettings.bColor && depthProfile && colorProfile) {
+                auto depthVsp = depthProfile->as<ob::VideoStreamProfile>();
+                auto colorVsp = colorProfile->as<ob::VideoStreamProfile>();
+                if (depthVsp && colorVsp && depthVsp->fps() != colorVsp->fps()) {
+                    ofLogNotice("ofxOrbbecCamera::open") << "Syncing depth and color frame rates to " << colorVsp->fps() << " fps";
+                    // Try to match depth to color frame rate
+                    auto depthProfileList = mPipe->getStreamProfileList(OB_SENSOR_DEPTH);
+                    try {
+                        depthProfile = depthProfileList->getVideoStreamProfile(
+                            depthVsp->width(), 
+                            depthVsp->height(),
+                            depthVsp->format(),
+                            colorVsp->fps()
+                        );
+                        config->enableStream(depthProfile); // Override previous depth profile
+                    } catch(ob::Error &e) {
+                        ofLogError("ofxOrbbecCamera::open") << "Could not sync depth frame rate: " << e.getMessage();
+                        return false;
+                    }
+                }
+            }
+
             // Pass in the configuration and start the pipeline
-            mPipe->start(config);
+            try {
+                mPipe->start(config);
+            } catch(ob::Error &e) {
+                ofLogError("ofxOrbbecCamera::open") << "Pipeline start failed: " << e.getMessage();
+                return false;
+            }
             
             if (device->isPropertySupported(OB_PROP_DEPTH_ROTATE_INT, OB_PERMISSION_WRITE)) {
                 device->setIntProperty(OB_PROP_DEPTH_ROTATE_INT, aSettings.rotation);
             }
 
-            if( aSettings.bPointCloud || aSettings.bPointCloudRGB ){
-                auto cameraParam = mPipe->getCameraParam();
-
-                pointCloud = std::make_shared<ob::PointCloudFilter>();
-                pointCloud->setCameraParam(cameraParam);
-                
-                if( aSettings.bPointCloudRGB ){
-                    pointCloud->setCreatePointFormat(OB_FORMAT_RGB_POINT);
-					auto param = mPipe->getCalibrationParam(config);
-										
-					auto     vsp            = colorProfile->as<ob::VideoStreamProfile>();
-					uint32_t colorWidth     = vsp->width();
-					uint32_t colorHeight    = vsp->height();
-					uint32_t tableSize = colorWidth * colorHeight * 2 * sizeof(float);
-					xyTableData.resize(tableSize);
-					
-					if(!ob::CoordinateTransformHelper::transformationInitXYTables(param, OB_SENSOR_COLOR, &xyTableData[0], &tableSize, &xyTables)) {
-						ofLogError("ofxOrbbecCamera::open") << " couldn't init xyTables for depth " << std::endl;
-					}
-					
-                }else{
-                    pointCloud->setCreatePointFormat(OB_FORMAT_POINT);
-                    
-					auto param = mPipe->getCalibrationParam(config);
-					auto     vsp            = depthProfile->as<ob::VideoStreamProfile>();
-					uint32_t depthWidth     = vsp->width();
-					uint32_t depthHeight    = vsp->height();
-					uint32_t tableSize = depthWidth * depthHeight * 2 * sizeof(float);
-					xyTableData.resize(tableSize);
-					
-					if(!ob::CoordinateTransformHelper::transformationInitXYTables(param, OB_SENSOR_DEPTH, &xyTableData[0], &tableSize, &xyTables)) {
-						ofLogError("ofxOrbbecCamera::open") << " couldn't init xyTables for depth " << std::endl;
-					}
-
+            // --- XY unprojection table setup ---
+            // Required for GPU mesh (bDepthMesh) and legacy CPU point cloud (bPointCloud/bPointCloudRGB).
+            if( aSettings.bDepthMesh || aSettings.bPointCloud || aSettings.bPointCloudRGB ){
+                auto param = mPipe->getCalibrationParam(config);
+                // When D2C is enabled, depth frame is warped to color camera space,
+                // so xyTable must use color sensor intrinsics + resolution.
+                OBSensorType xySensor = (needD2C) ? OB_SENSOR_COLOR : OB_SENSOR_DEPTH;
+                uint32_t xyWidth, xyHeight;
+                if (needD2C && colorProfile) {
+                    auto cvsp = colorProfile->as<ob::VideoStreamProfile>();
+                    xyWidth  = cvsp->width();
+                    xyHeight = cvsp->height();
+                } else {
+                    auto vsp = depthProfile->as<ob::VideoStreamProfile>();
+                    xyWidth  = vsp->width();
+                    xyHeight = vsp->height();
+                }
+                uint32_t tableSize = xyWidth * xyHeight * 2 * sizeof(float);
+                xyTableData.resize(tableSize);
+                if(!ob::CoordinateTransformHelper::transformationInitXYTables(param, xySensor, &xyTableData[0], &tableSize, &xyTables)) {
+                    ofLogError("ofxOrbbecCamera::open") << "couldn't init xyTables for " << (needD2C ? "color (D2C)" : "depth");
+                } else {
+                    ofLogNotice("ofxOrbbecCamera::open") << "xyTables built for " << (needD2C ? "color (D2C)" : "depth")
+                        << " sensor: " << xyWidth << "x" << xyHeight;
                 }
             }
 
+            // --- Legacy CPU PointCloudFilter (only when explicitly requested) ---
+            if( aSettings.bPointCloud || aSettings.bPointCloudRGB ){
+                auto cameraParam = mPipe->getCameraParam();
+                pointCloud = std::make_shared<ob::PointCloudFilter>();
+                pointCloud->setCameraParam(cameraParam);
+
+                if( aSettings.bPointCloudRGB ){
+                    pointCloud->setCreatePointFormat(OB_FORMAT_RGB_POINT);
+                    // RGB point cloud needs color-sensor xyTables (overwrites depth tables set above)
+                    auto param2 = mPipe->getCalibrationParam(config);
+                    auto vsp2 = colorProfile->as<ob::VideoStreamProfile>();
+                    uint32_t colorWidth  = vsp2->width();
+                    uint32_t colorHeight = vsp2->height();
+                    uint32_t tableSize2  = colorWidth * colorHeight * 2 * sizeof(float);
+                    xyTableData.resize(tableSize2);
+                    if(!ob::CoordinateTransformHelper::transformationInitXYTables(param2, OB_SENSOR_COLOR, &xyTableData[0], &tableSize2, &xyTables)) {
+                        ofLogError("ofxOrbbecCamera::open") << "couldn't init xyTables for color";
+                    }
+                }else{
+                    pointCloud->setCreatePointFormat(OB_FORMAT_POINT);
+                    // Depth xyTables already set up above
+                }
+            }
+
+            // Create depth post-processing filters
+            if (aSettings.bDepth) {
+                setupDepthFilters();
+            }
+
             ob::Context::setLoggerSeverity(OB_LOG_SEVERITY_ERROR);
-            bConnected = true; 
+            bConnected = true;
             startThread();
 
         }else{
@@ -370,12 +425,18 @@ void ofxOrbbecCamera::threadedFunction(){
                 if( mCurrentSettings.bDepth ) {
                     auto depthFrame = frameSet->getFrame(OB_FRAME_DEPTH);
                     if(depthFrame) {
+                        // Apply post-processing filters to raw depth frame
+                        depthFrame = applyDepthFilters(depthFrame);
+
                         mDepthPixels = processFrame(depthFrame);
-                        mDepthPixelsF = processFrameFloatPixels(depthFrame);
+                        if (mCurrentSettings.bDepthFloat) {
+                            mDepthPixelsF = processFrameFloatPixels(depthFrame);
+                        }
                         if( mCurrentSettings.bPointCloud && !mCurrentSettings.bPointCloudRGB ){
                             try {
                                 std::shared_ptr<ob::Frame> pointCloudFrame = pointCloud->process(frameSet);
                                 pointCloudToMesh(frameSet->depthFrame());
+                                mInternalDepthFrameNo++;  // Increment frame counter for point cloud
                             }
                             catch(std::exception &e) {
                                 ofLogError("ofxOrbbecCamera::threadedFunction") << "Get point cloud failed";
@@ -388,11 +449,33 @@ void ofxOrbbecCamera::threadedFunction(){
 
                 if( mCurrentSettings.bColor ) {
                     auto colorFrame = frameSet->getFrame(OB_FRAME_COLOR);
+                    static int noFrameCounter = 0;
+                    if(!colorFrame && noFrameCounter++ < 5) {
+                        std::cerr << "##### NO COLOR FRAME RECEIVED! #####" << std::endl;
+                        std::cerr.flush();
+                    }
                     if(colorFrame) {
+                        auto videoFrame = colorFrame->as<ob::VideoFrame>();
+                        static int logCounter = 0;
+                        if(logCounter++ < 5) {  // Log first 5 frames only
+                            std::cerr << ">>>>> Color frame format: " << videoFrame->format() 
+                                << " size: " << videoFrame->width() << "x" << videoFrame->height() 
+                                << " dataSize: " << videoFrame->dataSize() << std::endl;
+                            std::cerr.flush();
+                        }
+                        
                         mColorPixels = processFrame(colorFrame);
+                        
+                        static int pixelLogCounter = 0;
+                        if(pixelLogCounter++ < 5) {
+                            std::cerr << ">>>>> mColorPixels allocated: " << mColorPixels.isAllocated() 
+                                << " size: " << mColorPixels.getWidth() << "x" << mColorPixels.getHeight() << std::endl;
+                            std::cerr.flush();
+                        }
 
                         if( mCurrentSettings.bPointCloudRGB ){
-                            if(frameSet != nullptr && frameSet->depthFrame() != nullptr && frameSet->colorFrame() != nullptr) {
+                            // Try RGB point cloud if color frame was successfully processed
+                            if(frameSet != nullptr && frameSet->depthFrame() != nullptr && frameSet->colorFrame() != nullptr && mColorPixels.isAllocated()) {
                                 // point position value multiply depth value scale to convert uint to millimeter (for some devices, the default depth value uint is not
                                 // millimeter)
                                 auto depthValueScale = frameSet->depthFrame()->getValueScale();
@@ -402,7 +485,22 @@ void ofxOrbbecCamera::threadedFunction(){
                                     pointCloudToMesh(frameSet->depthFrame(), frameSet->colorFrame());
                                 }
                                 catch(std::exception &e) {
-                                    ofLogError("ofxOrbbecCamera::threadedFunction") << "Get point cloud failed";
+                                    ofLogError("ofxOrbbecCamera::threadedFunction") << "Get RGB point cloud failed: " << e.what();
+                                }
+                            } else {
+                                // Fall back to depth-only point cloud if color processing failed
+                               static bool loggedFallback = false;
+                                if(!loggedFallback) {
+                                    ofLogWarning("ofxOrbbecCamera::threadedFunction") << "Color frame unavailable, falling back to depth-only point cloud";
+                                    loggedFallback = true;
+                                }
+                                if(frameSet->depthFrame()) {
+                                    try {
+                                        pointCloudToMesh(frameSet->depthFrame());
+                                    }
+                                    catch(std::exception &e) {
+                                        ofLogError("ofxOrbbecCamera::threadedFunction") << "Get depth point cloud failed: " << e.what();
+                                    }
                                 }
                             }
                         }else{
@@ -462,7 +560,6 @@ void ofxOrbbecCamera::threadedFunction(){
             }
         }
 
-        ofSleepMillis(2);
     }
 }
         
@@ -608,7 +705,7 @@ ofPixels ofxOrbbecCamera::processFrame(std::shared_ptr<ob::Frame> frame){
             case OB_FORMAT_YUYV:
             case OB_FORMAT_YUY2: {
                 cv::Mat rawMat(videoFrame->height(), videoFrame->width(), CV_8UC2, videoFrame->data());
-                cv::cvtColor(rawMat, rstMat, cv::COLOR_YUV2RGB);
+                cv::cvtColor(rawMat, rstMat, cv::COLOR_YUV2RGB_YUYV);
             } break;
             case OB_FORMAT_RGB: {
                 cv::Mat rawMat(videoFrame->height(), videoFrame->width(), CV_8UC3, videoFrame->data());
@@ -668,7 +765,9 @@ ofPixels ofxOrbbecCamera::processFrame(std::shared_ptr<ob::Frame> frame){
             }
         }
     } catch(const cv::Exception& ex) {
-        ofLogError("processFrame") << " OB_FORMAT not supported " << std::endl; 
+        ofLogError("processFrame") << "OpenCV exception: " << ex.what() << std::endl; 
+    } catch(const std::exception& ex) {
+        ofLogError("processFrame") << "Exception: " << ex.what() << std::endl; 
     }
     return pix; 
 }
@@ -689,16 +788,20 @@ ofFloatPixels ofxOrbbecCamera::processFrameFloatPixels(std::shared_ptr<ob::Frame
                 std::vector<float> raw_pixels;
                 raw_pixels.resize(videoFrame->width() * videoFrame->height());
                 float scale = videoFrame->as<ob::DepthFrame>()->getValueScale();
-                std::for_each(raw_pixels.begin(),
-                              raw_pixels.end(),
-                              [scale](float &x) { x *= scale; });
-                std::memcpy(raw_pixels.data(), videoFrame->data(), sizeof(float) * videoFrame->width() * videoFrame->height());
+                
+                // Copy Y16 data (unsigned short) to float buffer, then apply scale
+                const uint16_t* depthData = static_cast<const uint16_t*>(videoFrame->data());
+                for(size_t i = 0; i < raw_pixels.size(); i++) {
+                    raw_pixels[i] = static_cast<float>(depthData[i]) * scale;
+                }
                 
                 pix.setFromPixels(raw_pixels.data(), videoFrame->width(), videoFrame->height(), 1);
             }
         }
     } catch(const cv::Exception& ex) {
-        ofLogError("processFrame") << " OB_FORMAT not supported " << std::endl;
+        ofLogError("processFrameFloatPixels") << "OpenCV exception: " << ex.what() << std::endl;
+    } catch(const std::exception& ex) {
+        ofLogError("processFrameFloatPixels") << "Exception: " << ex.what() << std::endl;
     }
     return pix;
 }
@@ -724,7 +827,9 @@ ofShortPixels ofxOrbbecCamera::processFrameShortPixels(std::shared_ptr<ob::Frame
             }
         }
     } catch(const cv::Exception& ex) {
-        ofLogError("processFrame") << " OB_FORMAT not supported " << std::endl;
+        ofLogError("processFrameShortPixels") << "OpenCV exception: " << ex.what() << std::endl;
+    } catch(const std::exception& ex) {
+        ofLogError("processFrameShortPixels") << "Exception: " << ex.what() << std::endl;
     }
     return pix;
 }
@@ -760,8 +865,26 @@ void ofxOrbbecCamera::pointCloudToMesh(std::shared_ptr<ob::DepthFrame> depthFram
         mPointCloudMesh.setMode(OF_PRIMITIVE_POINTS);
 
         if( bRGB ){
+			// Validate color frame data before processing
+			if (!colorFrame || !colorFrame->data() || colorFrame->dataSize() == 0) {
+				ofLogError("pointCloudToMesh") << "Invalid color frame data";
+				return;
+			}
+			
+			// Validate depth frame data
+			if (!depthFrame->data() || depthFrame->dataSize() == 0) {
+				ofLogError("pointCloudToMesh") << "Invalid depth frame data";
+				return;
+			}
+			
 			OBColorPoint *point = (OBColorPoint *)&mPointcloudData[0];
-			ob::CoordinateTransformHelper::transformationDepthToRGBDPointCloud(&xyTables, depthFrame->data(), colorFrame->data(), point);
+			
+			try {
+				ob::CoordinateTransformHelper::transformationDepthToRGBDPointCloud(&xyTables, depthFrame->data(), colorFrame->data(), point);
+			} catch (const std::exception& e) {
+				ofLogError("pointCloudToMesh") << "Error in transformationDepthToRGBDPointCloud: " << e.what();
+				return;
+			}
 
 			point = (OBColorPoint *)&mPointcloudData[0];
 
@@ -793,11 +916,11 @@ void ofxOrbbecCamera::pointCloudToMesh(std::shared_ptr<ob::DepthFrame> depthFram
         }
 
         mPointCloudMesh.addVertices(mPointCloudPts);
-        mPointCloudMesh.setupIndicesAuto(); 
+        // No setupIndicesAuto() - OF_PRIMITIVE_POINTS doesn't need an index buffer
 
         if( lock() ){
-            mPointCloudMeshLocal = mPointCloudMesh; 
-            mPointCloudPtsLocal = mPointCloudPts;
+            std::swap(mPointCloudMeshLocal, mPointCloudMesh);  // swap avoids a full mesh copy
+            std::swap(mPointCloudPtsLocal, mPointCloudPts);
             if( bRGB ){
                 mInternalColorFrameNo++;
             }else{
@@ -810,4 +933,113 @@ void ofxOrbbecCamera::pointCloudToMesh(std::shared_ptr<ob::DepthFrame> depthFram
 
 void ofxOrbbecCamera::setOrbbecLogLevel(OBLogSeverity level) {
     ob::Context::setLoggerSeverity(level);
+}
+
+// --- Depth post-processing filters ---
+
+void ofxOrbbecCamera::setupDepthFilters() {
+    try {
+        mTemporalFilter = std::make_shared<ob::TemporalFilter>();
+        mTemporalFilter->enable(mCurrentSettings.bTemporalFilter);
+        ofLogNotice("ofxOrbbecCamera") << "TemporalFilter created (enabled=" << mCurrentSettings.bTemporalFilter << ")";
+    } catch (const std::exception& e) {
+        ofLogWarning("ofxOrbbecCamera") << "TemporalFilter not available: " << e.what();
+    }
+
+    try {
+        mSpatialFilter = std::make_shared<ob::SpatialAdvancedFilter>();
+        mSpatialFilter->enable(mCurrentSettings.bSpatialFilter);
+        ofLogNotice("ofxOrbbecCamera") << "SpatialAdvancedFilter created (enabled=" << mCurrentSettings.bSpatialFilter << ")";
+    } catch (const std::exception& e) {
+        ofLogWarning("ofxOrbbecCamera") << "SpatialAdvancedFilter not available: " << e.what();
+    }
+
+    try {
+        mHoleFillingFilter = std::make_shared<ob::HoleFillingFilter>();
+        mHoleFillingFilter->enable(mCurrentSettings.bHoleFillingFilter);
+        ofLogNotice("ofxOrbbecCamera") << "HoleFillingFilter created (enabled=" << mCurrentSettings.bHoleFillingFilter << ")";
+    } catch (const std::exception& e) {
+        ofLogWarning("ofxOrbbecCamera") << "HoleFillingFilter not available: " << e.what();
+    }
+
+    try {
+        mNoiseRemovalFilter = std::make_shared<ob::NoiseRemovalFilter>();
+        mNoiseRemovalFilter->enable(mCurrentSettings.bNoiseRemovalFilter);
+        ofLogNotice("ofxOrbbecCamera") << "NoiseRemovalFilter created (enabled=" << mCurrentSettings.bNoiseRemovalFilter << ")";
+    } catch (const std::exception& e) {
+        ofLogWarning("ofxOrbbecCamera") << "NoiseRemovalFilter not available: " << e.what();
+    }
+
+    try {
+        mEdgeNoiseRemovalFilter = std::make_shared<ob::EdgeNoiseRemovalFilter>();
+        mEdgeNoiseRemovalFilter->enable(mCurrentSettings.bEdgeNoiseRemovalFilter);
+        ofLogNotice("ofxOrbbecCamera") << "EdgeNoiseRemovalFilter created (enabled=" << mCurrentSettings.bEdgeNoiseRemovalFilter << ")";
+    } catch (const std::exception& e) {
+        ofLogWarning("ofxOrbbecCamera") << "EdgeNoiseRemovalFilter not available: " << e.what();
+    }
+}
+
+std::shared_ptr<ob::Frame> ofxOrbbecCamera::applyDepthFilters(std::shared_ptr<ob::Frame> frame) {
+    // Apply filters in recommended order: spatial → temporal → edge noise → noise removal → hole filling
+    if (mSpatialFilter && mSpatialFilter->isEnabled()) {
+        try { frame = mSpatialFilter->process(frame); } catch (...) {}
+    }
+    if (mTemporalFilter && mTemporalFilter->isEnabled()) {
+        try { frame = mTemporalFilter->process(frame); } catch (...) {}
+    }
+    if (mEdgeNoiseRemovalFilter && mEdgeNoiseRemovalFilter->isEnabled()) {
+        try { frame = mEdgeNoiseRemovalFilter->process(frame); } catch (...) {}
+    }
+    if (mNoiseRemovalFilter && mNoiseRemovalFilter->isEnabled()) {
+        try { frame = mNoiseRemovalFilter->process(frame); } catch (...) {}
+    }
+    if (mHoleFillingFilter && mHoleFillingFilter->isEnabled()) {
+        try { frame = mHoleFillingFilter->process(frame); } catch (...) {}
+    }
+    return frame;
+}
+
+void ofxOrbbecCamera::enableTemporalFilter(bool enable) {
+    if (mTemporalFilter) mTemporalFilter->enable(enable);
+}
+void ofxOrbbecCamera::enableSpatialFilter(bool enable) {
+    if (mSpatialFilter) mSpatialFilter->enable(enable);
+}
+void ofxOrbbecCamera::enableHoleFillingFilter(bool enable) {
+    if (mHoleFillingFilter) mHoleFillingFilter->enable(enable);
+}
+void ofxOrbbecCamera::enableNoiseRemovalFilter(bool enable) {
+    if (mNoiseRemovalFilter) mNoiseRemovalFilter->enable(enable);
+}
+void ofxOrbbecCamera::enableEdgeNoiseRemovalFilter(bool enable) {
+    if (mEdgeNoiseRemovalFilter) mEdgeNoiseRemovalFilter->enable(enable);
+}
+
+void ofxOrbbecCamera::setTemporalFilterWeight(float weight) {
+    if (mTemporalFilter) mTemporalFilter->setWeight(weight);
+}
+void ofxOrbbecCamera::setTemporalFilterDiffScale(float diffScale) {
+    if (mTemporalFilter) mTemporalFilter->setDiffScale(diffScale);
+}
+void ofxOrbbecCamera::setSpatialFilterParams(OBSpatialAdvancedFilterParams params) {
+    if (mSpatialFilter) mSpatialFilter->setFilterParams(params);
+}
+void ofxOrbbecCamera::setHoleFillingMode(OBHoleFillingMode mode) {
+    if (mHoleFillingFilter) mHoleFillingFilter->setFilterMode(mode);
+}
+
+bool ofxOrbbecCamera::isTemporalFilterEnabled() const {
+    return mTemporalFilter && mTemporalFilter->isEnabled();
+}
+bool ofxOrbbecCamera::isSpatialFilterEnabled() const {
+    return mSpatialFilter && mSpatialFilter->isEnabled();
+}
+bool ofxOrbbecCamera::isHoleFillingFilterEnabled() const {
+    return mHoleFillingFilter && mHoleFillingFilter->isEnabled();
+}
+bool ofxOrbbecCamera::isNoiseRemovalFilterEnabled() const {
+    return mNoiseRemovalFilter && mNoiseRemovalFilter->isEnabled();
+}
+bool ofxOrbbecCamera::isEdgeNoiseRemovalFilterEnabled() const {
+    return mEdgeNoiseRemovalFilter && mEdgeNoiseRemovalFilter->isEnabled();
 }

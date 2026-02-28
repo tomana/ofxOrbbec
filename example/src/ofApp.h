@@ -34,4 +34,6 @@ class ofApp : public ofBaseApp{
 		ofTexture outputTexDepth;
 
 		ofEasyCam mCam;
+
+	bool bAcquisitionActive = true;
 };
